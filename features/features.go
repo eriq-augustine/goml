@@ -3,9 +3,9 @@ package features
 type FeatureType int
 
 const (
-   Numeric FeatureType = iota
-   Boolean
-   String
+	Numeric FeatureType = iota
+	Boolean
+	String
 )
 
 type Features []FeatureType

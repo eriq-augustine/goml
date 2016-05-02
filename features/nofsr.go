@@ -1,7 +1,7 @@
 package features
 
 import (
-   "github.com/eriq-augustine/goml/base"
+	"github.com/eriq-augustine/goml/base"
 )
 
 type NoReducer struct{}
