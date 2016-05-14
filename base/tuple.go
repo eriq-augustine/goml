@@ -2,11 +2,16 @@ package base
 
 import (
 	"fmt"
+        "reflect"
 )
 
 type Tuple struct {
 	Data  []interface{}
 	Class interface{}
+}
+
+func (tuple Tuple) Equals(other Tuple) bool {
+   return reflect.DeepEqual(tuple, other);
 }
 
 func (tuple Tuple) NumericValue() []float64 {
