@@ -14,7 +14,7 @@ func (e Euclidean) Distance(x Tuple, y Tuple) float64 {
 	var sum float64 = 0
 
 	for i, _ := range x.Data {
-		sum += math.Pow(float64(NumericValue(x.Data[i])-NumericValue(y.Data[i])), 2)
+		sum += math.Pow(x.NumericValue(i) - y.NumericValue(i), 2)
 	}
 
 	return math.Sqrt(sum)
