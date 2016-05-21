@@ -15,17 +15,16 @@ const (
 type MRMRReducer struct{}
 
 // TODO(eriq): Don't do anything if too few features.
-func (reducer MRMRReducer) Init(features Features, data []base.Tuple) {
+func (reducer MRMRReducer) Init(data []base.Tuple) {
    if (len(data) == 0) {
       panic("Empty training set");
    }
 
    // TEST
-   fmt.Println(len(features));
    fmt.Println(data);
 
    // Discretize
-   var discreteData []base.Tuple = base.DiscretizeNumericFeatures(data, NUM_BUCKETS);
+   var discreteData []base.IntTuple = base.DiscretizeNumericFeatures(data, NUM_BUCKETS);
 
    // Marginal Probability (each feature)
    var marginalProbabilities [][]float64 = calcAllMarginalProbabilities(discreteData);
@@ -38,28 +37,28 @@ func (reducer MRMRReducer) Init(features Features, data []base.Tuple) {
    // Calc
 }
 
-func (reducer MRMRReducer) Reduce(data []base.Tuple) []base.Tuple {
+func (reducer MRMRReducer) Reduce(tuple base.Tuple) base.Tuple {
    // TODO(eriq)
-   return data;
+   return tuple;
 }
 
 // Returns: [featureIndex][bucket (happens to be index]marginalProbibility
-func calcAllMarginalProbabilities(discreteData []base.Tuple) [][]float64 {
-   var probabilities [][]float64 = make([][]float64, len(discreteData[0].Data));
+func calcAllMarginalProbabilities(discreteData []base.IntTuple) [][]float64 {
+   var probabilities [][]float64 = make([][]float64, discreteData[0].DataSize());
 
-   for featureIndex := 0; featureIndex < len(discreteData[0].Data); featureIndex++ {
+   for featureIndex := 0; featureIndex < discreteData[0].DataSize(); featureIndex++ {
       probabilities[featureIndex] = calcFeatureMarginalProbabilities(discreteData, featureIndex);
    }
 
    return probabilities;
 }
 
-func calcFeatureMarginalProbabilities(discreteData []base.Tuple, featureIndex int) []float64 {
+func calcFeatureMarginalProbabilities(discreteData []base.IntTuple, featureIndex int) []float64 {
    // Note that the data is already zero'd.
    var probabilities []float64 = make([]float64, NUM_BUCKETS);
 
    for _, tuple := range(discreteData) {
-      probabilities[tuple.Data[featureIndex].(int)]++;
+      probabilities[tuple.GetIntData(featureIndex)]++;
    }
 
    for i, _ := range(probabilities) {

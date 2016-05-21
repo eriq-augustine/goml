@@ -8,22 +8,20 @@ import (
 
 type mrmrTestData struct {
    Name string
-   Features Features
    Data []base.Tuple
-   ReducedData []base.Tuple
+   RawTuple base.Tuple
+   ReducedTuple base.Tuple
 }
 
 func TestDiscretizeNumericFeatureBase(t *testing.T) {
    var testData []mrmrTestData = []mrmrTestData{
       mrmrTestData{
          "Base",
-         nil,
          []base.Tuple{
-            base.Tuple{[]interface{}{1}, "A"},
+            base.NewIntTuple([]interface{}{1}, "A"),
          },
-         []base.Tuple{
-            base.Tuple{[]interface{}{1}, "A"},
-         },
+         base.NewIntTuple([]interface{}{1}, "A"),
+         base.NewIntTuple([]interface{}{1}, "A"),
       },
       /*
       // Bad Input
@@ -139,20 +137,11 @@ func TestDiscretizeNumericFeatureBase(t *testing.T) {
 
    for _, testCase := range(testData) {
       var reducer MRMRReducer;
-      reducer.Init(testCase.Features, testCase.Data);
+      reducer.Init(testCase.Data);
 
-      var actual []base.Tuple = reducer.Reduce(testCase.Data);
-      if (!dataEquals(actual, testCase.ReducedData)) {
-         t.Errorf("Failed mRMR reduction (%s). Expected: %v, Got: %v", testCase.Name, testCase.ReducedData, actual);
+      var actual base.Tuple = reducer.Reduce(testCase.RawTuple);
+      if (!base.TupleEquals(actual, testCase.ReducedTuple)) {
+         t.Errorf("Failed mRMR reduction (%s). Expected: %v, Got: %v", testCase.Name, testCase.ReducedTuple, actual);
       }
    }
-}
-
-func dataEquals(a []base.Tuple, b []base.Tuple) bool {
-   for i, _ := range(a) {
-      if (!a[i].Equals(b[i])) {
-         return false;
-      }
-   }
-   return true;
 }

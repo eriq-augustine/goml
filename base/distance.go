@@ -1,21 +1,21 @@
 package base
 
 import (
-	"math"
+   "math"
 )
 
 type Distancer interface {
-	Distance(Tuple, Tuple) float64
+   Distance(NumericTuple, NumericTuple) float64
 }
 
 type Euclidean struct{}
 
-func (e Euclidean) Distance(x Tuple, y Tuple) float64 {
-	var sum float64 = 0
+func (e Euclidean) Distance(x NumericTuple, y NumericTuple) float64 {
+   var sum float64 = 0;
 
-	for i, _ := range x.Data {
-		sum += math.Pow(x.NumericValue(i) - y.NumericValue(i), 2)
-	}
+   for i := 0; i < x.DataSize(); i++ {
+      sum += math.Pow(x.GetNumericData(i) - y.GetNumericData(i), 2);
+   }
 
-	return math.Sqrt(sum)
+   return math.Sqrt(sum);
 }

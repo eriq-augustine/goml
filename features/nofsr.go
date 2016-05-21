@@ -6,8 +6,8 @@ import (
 
 type NoReducer struct{}
 
-func (reducer NoReducer) Init(features Features, tuples []base.Tuple) {}
+func (reducer NoReducer) Init(tuples []base.Tuple) {}
 
-func (reducer NoReducer) Reduce(features Features) Features {
-	return features
+func (reducer NoReducer) Reduce(tuple base.Tuple) base.Tuple {
+	return tuple;
 }

@@ -10,34 +10,35 @@ import (
 // This allows features of diffferent ranges (say a percentage (0 - 1) and
 // absolute value (any value (perhaps -1 - 300)) to reside next to each other
 // without being put into the same bucket.
-func DiscretizeNumericFeatures(data []Tuple, numBuckets int) []Tuple {
-   var discreteData []Tuple = make([]Tuple, len(data));
+func DiscretizeNumericFeatures(data []Tuple, numBuckets int) []IntTuple {
+   var discreteData []IntTuple = make([]IntTuple, len(data));
    for i, tuple := range(data) {
-      discreteData[i] = tuple.DeepCopy();
+      // Make a zero'd int tuple.
+      discreteData[i] = NewIntTuple(util.InterfaceSlice(make([]int, tuple.DataSize())), tuple.GetClass());
    }
 
-   if (len(discreteData) == 0 || numBuckets <= 0) {
+   if (len(data) == 0 || numBuckets <= 0) {
       return discreteData;
    }
 
-   for i, _ := range(discreteData[0].Data) {
-      DiscretizeNumericFeature(discreteData, numBuckets, i);
+   for i := 0; i < data[0].DataSize(); i++ {
+      DiscretizeNumericFeature(data, discreteData, numBuckets, i);
    }
 
    return discreteData;
 }
 
 // |data| will get modified.
-func DiscretizeNumericFeature(data []Tuple, numBuckets int, featureIndex int) {
-   if (len(data) == 0 || len(data[0].Data) < featureIndex || !util.IsNumeric(data[0].Data[featureIndex])) {
+func DiscretizeNumericFeature(data []Tuple, discreteData []IntTuple, numBuckets int, featureIndex int) {
+   if (len(data) == 0 || data[0].DataSize() < featureIndex || !data[0].GetData(featureIndex).IsNumeric()) {
       return;
    }
 
-   var min float64 = data[0].NumericValue(featureIndex);
+   var min float64 = (data[0].(NumericTuple)).GetNumericData(featureIndex);
    var max float64 = min;
 
    for _, tuple := range(data) {
-      var val float64 = tuple.NumericValue(featureIndex);
+      var val float64 = (tuple.(NumericTuple)).GetNumericData(featureIndex);
       if (val < min) {
          min = val;
       } else if (val > max) {
@@ -45,11 +46,11 @@ func DiscretizeNumericFeature(data []Tuple, numBuckets int, featureIndex int) {
       }
    }
 
-   DiscretizeNumericFeatureWithBounds(data, numBuckets, featureIndex, min, max);
+   DiscretizeNumericFeatureWithBounds(data, discreteData, numBuckets, featureIndex, min, max);
 }
 
-// |data| will get modified.
-func DiscretizeNumericFeatureWithBounds(data []Tuple, numBuckets int, featureIndex int, min float64, max float64) {
+// |discreteData| will get modified.
+func DiscretizeNumericFeatureWithBounds(data []Tuple, discreteData []IntTuple, numBuckets int, featureIndex int, min float64, max float64) {
    if (numBuckets < 1 || min > max) {
       return;
    }
@@ -57,7 +58,7 @@ func DiscretizeNumericFeatureWithBounds(data []Tuple, numBuckets int, featureInd
    var bucketSize float64 = (max - min) / float64(numBuckets);
 
    for i, _ := range(data) {
-      data[i].Data[featureIndex] = Discretize(data[i].NumericValue(featureIndex), min, max, bucketSize, numBuckets);
+      discreteData[i].SetData(featureIndex, Discretize((data[i].(NumericTuple)).GetNumericData(featureIndex), min, max, bucketSize, numBuckets));
    }
 }
 
@@ -68,27 +69,4 @@ func Discretize(val float64, min float64, max float64, bucketSize float64, numBu
    }
 
    return int(math.Min(math.Max(val - min, 0) / bucketSize, float64(numBuckets - 1)));
-}
-
-// Only works on Numeric values.
-// Other values will be left alone.
-// Discretized values will start at 0 and go until numBuckets - 1.
-func DiscretizeNumericTuple(tuple Tuple, min float64, max float64, numBuckets int) Tuple {
-   if (numBuckets < 1 || min > max) {
-      return tuple;
-   }
-
-   var bucketSize float64 = (max - min) / float64(numBuckets);
-   var discreteTuple Tuple = Tuple{make([]interface{}, len(tuple.Data)), tuple.Class};
-
-   for i, val := range(tuple.Data) {
-      if (!util.IsNumeric(val)) {
-         discreteTuple.Data[i] = tuple.Data[i]
-         continue;
-      }
-
-      discreteTuple.Data[i] = Discretize(util.NumericValue(val), min, max, bucketSize, numBuckets);
-   }
-
-   return discreteTuple;
 }
