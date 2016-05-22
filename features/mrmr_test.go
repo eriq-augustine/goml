@@ -18,7 +18,8 @@ func TestDiscretizeNumericFeatureBase(t *testing.T) {
       mrmrTestData{
          "Base",
          []base.Tuple{
-            base.NewIntTuple([]interface{}{1}, "A"),
+            base.NewIntTuple([]interface{}{1, 2, 3}, "A"),
+            base.NewIntTuple([]interface{}{1, 1, 3}, "B"),
          },
          base.NewIntTuple([]interface{}{1}, "A"),
          base.NewIntTuple([]interface{}{1}, "A"),
