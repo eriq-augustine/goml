@@ -43,9 +43,16 @@ func (reducer MRMRReducer) Init(data []base.Tuple) {
    // Joint Probability (each feature vs (each feature + class)
    var jointProbabilities [][][][]float64 = calcAllJointProbabilities(discreteData);
 
-
    // TEST
    printJointProbabilities(jointProbabilities);
+
+   // TODO(eriq): Marginal and joint probabilities for class labels.
+   classValueMap, _, classMarginalProbabilities, classJointProbabilities := calcClassProbabilities(discreteData);
+
+   // TEST
+   fmt.Println(classValueMap);
+   fmt.Println(classMarginalProbabilities);
+   fmt.Println(classJointProbabilities);
 
    // TODO(eriq);
    // Calc
@@ -54,6 +61,64 @@ func (reducer MRMRReducer) Init(data []base.Tuple) {
 func (reducer MRMRReducer) Reduce(tuple base.Tuple) base.Tuple {
    // TODO(eriq)
    return tuple;
+}
+
+// Calc marginal and joint probabilities for the class label.
+func calcClassProbabilities(discreteData []base.IntTuple) (map[base.Feature]int, map[int]base.Feature, []float64, [][][]float64) {
+   // Map out the different class labels seen in the data and assign each an index.
+   var classLabelIndex int = 0;
+   // TODO(eriq): Need both?
+   var classValueMap map[base.Feature]int = make(map[base.Feature]int);
+   var reverseClassValueMap map[int]base.Feature = make(map[int]base.Feature);
+
+   for _, tuple := range(discreteData) {
+      _, contains := classValueMap[tuple.GetClass()];
+      if (!contains) {
+         classValueMap[tuple.GetClass()] = classLabelIndex;
+         reverseClassValueMap[classLabelIndex] = tuple.GetClass();
+         classLabelIndex++;
+      }
+   }
+
+   // Marginal probabilities
+   // [classValueIndex] -> probability
+   var marginalProbabilities []float64 = make([]float64, len(classValueMap));
+
+   for _, tuple := range(discreteData) {
+      marginalProbabilities[classValueMap[tuple.GetClass()]]++;
+   }
+
+   for i, _ := range(marginalProbabilities) {
+      marginalProbabilities[i] /= float64(len(discreteData));
+   }
+
+   // Joint Probabilities
+   // Initialize the entire solution space.
+   // [classValueIndex][featureIndex][featureBucket] -> probability
+   var jointProbabilities [][][]float64 = make([][][]float64, len(classValueMap));
+   for _, classValueIndex := range(classValueMap) {
+      jointProbabilities[classValueIndex] = make([][]float64, discreteData[0].DataSize());
+      for featureIndex, _ := range(jointProbabilities[classValueIndex]) {
+         jointProbabilities[classValueIndex][featureIndex] = make([]float64, NUM_BUCKETS);
+      }
+   }
+
+   for featureIndex := 0; featureIndex < discreteData[0].DataSize(); featureIndex++ {
+      for _, tuple := range(discreteData) {
+         jointProbabilities[classValueMap[tuple.GetClass()]][featureIndex][tuple.GetIntData(featureIndex)]++;
+      }
+   }
+
+   // Normalize
+   for i, _ := range(jointProbabilities) {
+      for j, _ := range(jointProbabilities[i]) {
+         for k, _ := range(jointProbabilities[i][j]) {
+            jointProbabilities[i][j][k] /= float64(len(discreteData));
+         }
+      }
+   }
+
+   return classValueMap, reverseClassValueMap, marginalProbabilities, jointProbabilities;
 }
 
 // Returns: [featureIndex][bucket (happens to be an index)]marginalProbibility
