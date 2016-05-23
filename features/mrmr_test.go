@@ -8,6 +8,8 @@ import (
 
 type mrmrTestData struct {
    Name string
+   NumFeatures int
+   NumBuckets int
    Data []base.Tuple
    RawTuple base.Tuple
    ReducedTuple base.Tuple
@@ -17,12 +19,14 @@ func TestDiscretizeNumericFeatureBase(t *testing.T) {
    var testData []mrmrTestData = []mrmrTestData{
       mrmrTestData{
          "Base",
+         2,
+         3,
          []base.Tuple{
             base.NewIntTuple([]interface{}{1, 2, 3}, "A"),
             base.NewIntTuple([]interface{}{1, 1, 3}, "B"),
          },
-         base.NewIntTuple([]interface{}{1}, "A"),
-         base.NewIntTuple([]interface{}{1}, "A"),
+         base.NewTuple([]interface{}{0, 1, 2}, "A"),
+         base.NewTuple([]interface{}{1, 0}, "A"),
       },
       /*
       // Bad Input
@@ -137,10 +141,10 @@ func TestDiscretizeNumericFeatureBase(t *testing.T) {
    };
 
    for _, testCase := range(testData) {
-      var reducer MRMRReducer;
+      var reducer MRMRReducer = NewMRMRReducer(testCase.NumFeatures, testCase.NumBuckets);
       reducer.Init(testCase.Data);
 
-      var actual base.Tuple = reducer.Reduce(testCase.RawTuple);
+      var actual base.Tuple = reducer.Reduce([]base.Tuple{testCase.RawTuple})[0];
       if (!base.TupleEquals(actual, testCase.ReducedTuple)) {
          t.Errorf("Failed mRMR reduction (%s). Expected: %v, Got: %v", testCase.Name, testCase.ReducedTuple, actual);
       }

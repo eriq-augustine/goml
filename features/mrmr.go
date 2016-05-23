@@ -2,80 +2,195 @@ package features
 
 import (
    "fmt"
+   "math"
 
    "github.com/eriq-augustine/goml/base"
+   "github.com/eriq-augustine/goml/util"
 )
 
 const (
-   NUM_FEATURES = 100
-   // TEST
-   // NUM_BUCKETS = 100
-   NUM_BUCKETS = 3
+   DEFAULT_NUM_FEATURES = 100
+   DEFAULT_NUM_BUCKETS = 20
 )
 
 // http://dl.acm.org/citation.cfm?id=1070809
-type MRMRReducer struct{}
+type MRMRReducer struct{
+   fanIn int
+   fanOut int
+   numFeatureBuckets int
+   features []int
+}
 
-// TODO(eriq): Don't do anything if too few features.
+func NewMRMRReducer(numFeatures int, numBuckets int) MRMRReducer {
+   if (numFeatures <= 0) {
+      numFeatures = DEFAULT_NUM_FEATURES;
+   }
+
+   if (numBuckets <= 0) {
+      numBuckets = DEFAULT_NUM_BUCKETS;
+   }
+
+   return MRMRReducer{
+      fanIn: -1,
+      fanOut: numFeatures,
+      numFeatureBuckets: numBuckets,
+   };
+}
+
 // It is required that all class labels be present in |data|.
-func (reducer MRMRReducer) Init(data []base.Tuple) {
+func (this *MRMRReducer) Init(data []base.Tuple) {
    if (len(data) == 0) {
       panic("Empty training set");
    }
 
-   // TEST
-   fmt.Println("--- raw ---");
-   fmt.Println(data);
+   this.fanIn = data[0].DataSize();
+   if (this.fanIn <= this.fanOut) {
+      // Done, great job!
+      this.fanOut = this.fanIn;
+      return;
+   }
 
    // Discretize
-   var discreteData []base.IntTuple = base.DiscretizeNumericFeatures(data, NUM_BUCKETS);
+   var discreteData []base.IntTuple = base.DiscretizeNumericFeatures(data, this.numFeatureBuckets);
 
-   // TEST
-   fmt.Println("--- discrete ---");
-   fmt.Println(discreteData);
+   mutualInformation, classMutualInformation := this.calcAllMutualInformation(discreteData);
 
-   // Marginal Probability (each feature)
-   var marginalProbabilities [][]float64 = calcAllMarginalProbabilities(discreteData);
-
-   // TEST
-   fmt.Println(marginalProbabilities);
-
-   // Joint Probability (each feature vs (each feature + class)
-   var jointProbabilities [][][][]float64 = calcAllJointProbabilities(discreteData);
-
-   // TEST
-   printJointProbabilities(jointProbabilities);
-
-   // TODO(eriq): Marginal and joint probabilities for class labels.
-   classValueMap, _, classMarginalProbabilities, classJointProbabilities := calcClassProbabilities(discreteData);
-
-   // TEST
-   fmt.Println(classValueMap);
-   fmt.Println(classMarginalProbabilities);
-   fmt.Println(classJointProbabilities);
-
-   // TODO(eriq);
    // Calc
+   this.features = this.chooseFeatures(this.fanIn, mutualInformation, classMutualInformation);
 }
 
-func (reducer MRMRReducer) Reduce(tuple base.Tuple) base.Tuple {
-   // TODO(eriq)
-   return tuple;
+func (this MRMRReducer) Reduce(tuples []base.Tuple) []base.Tuple {
+   return SelectFeatures(tuples, this.features);
+}
+
+func (this MRMRReducer) chooseFeatures(numFeatures int, mutualInformation [][]float64, classMutualInformation []float64) []int {
+   var features []int = make([]int, this.fanOut);
+   var usedFeatures map[int]bool = make(map[int]bool);
+
+   for i := 0; i < this.fanOut; i++ {
+      var bestFeatureIndex int = -1;
+      var bestFeatureScore float64 = -1;
+
+      for featureIndex := 0; featureIndex < numFeatures; featureIndex++ {
+         _, hasFeature := usedFeatures[featureIndex];
+         if (hasFeature) {
+            continue;
+         }
+
+         var score float64 = this.calcMRMR(usedFeatures, featureIndex, mutualInformation, classMutualInformation);
+         if (bestFeatureIndex == -1 || score > bestFeatureScore) {
+            bestFeatureIndex = featureIndex;
+            bestFeatureScore = score;
+         }
+      }
+
+      features[i] = bestFeatureIndex;
+      usedFeatures[bestFeatureIndex] = true;
+   }
+
+   return features;
+}
+
+func (this MRMRReducer) calcMRMR(usedFeatures map[int]bool, featureIndex int, mutualInformation [][]float64, classMutualInformation []float64) float64 {
+   if (len(usedFeatures) == 0) {
+      return classMutualInformation[featureIndex];
+   }
+
+   var sum float64;
+   for usedFeatureIndex, _ := range(usedFeatures) {
+      sum += mutualInformation[util.MaxInt(usedFeatureIndex, featureIndex)][util.MinInt(usedFeatureIndex, featureIndex)];
+   }
+
+   return classMutualInformation[featureIndex] - (sum / float64(len(usedFeatures)));
+}
+
+// Returns:
+//    (non-class label mutual information, class label mutual information)
+//    ([featureIndex1][featureIndex2] -> mutual information, [featureIndex] -> mutual information)
+// Note that mutual information is symetric, so for the non-class variant,
+// the same rules for calcAllJointProbabilities() will apply.
+// (featureIndex1 > featureIndex2 and featureIndex1 == featureIndex2 is invalid).
+func (this MRMRReducer) calcAllMutualInformation(discreteData []base.IntTuple) ([][]float64, []float64) {
+   // Marginal Probability (each feature)
+   var marginalProbabilities [][]float64 = this.calcAllMarginalProbabilities(discreteData);
+
+   // Joint Probability (each feature vs (each feature + class)
+   var jointProbabilities [][][][]float64 = this.calcAllJointProbabilities(discreteData);
+
+   classMarginalProbabilities, classJointProbabilities := this.calcClassProbabilities(discreteData);
+
+   // [featureIndex1][featureIndex2] -> mutual information
+   var mutualInformation [][]float64 = make([][]float64, this.fanIn);
+   for featureIndex1 := 0; featureIndex1 < this.fanIn; featureIndex1++ {
+      mutualInformation[featureIndex1] = make([]float64, featureIndex1 + 1);
+
+      // Invalid
+      mutualInformation[featureIndex1][featureIndex1] = -1;
+
+      for featureIndex2 := 0; featureIndex2 < featureIndex1; featureIndex2++ {
+         mutualInformation[featureIndex1][featureIndex2] = this.calcMutualInformation(featureIndex1, featureIndex2, marginalProbabilities, jointProbabilities);
+      }
+   }
+
+   // [featureIndex] -> mutual information
+   var classMutualInformation []float64 = make([]float64, this.fanIn);
+   for featureIndex := 0; featureIndex < this.fanIn; featureIndex++ {
+      classMutualInformation[featureIndex] = this.calcMutualClassInformation(featureIndex, marginalProbabilities, classMarginalProbabilities, classJointProbabilities);
+   }
+
+   return mutualInformation, classMutualInformation;
+}
+
+func (this MRMRReducer) calcMutualInformation(featureIndex1 int, featureIndex2 int, marginalProbabilities [][]float64, jointProbabilities [][][][]float64) float64 {
+   var mutualInfo float64;
+
+   for featureBucket1 := 0; featureBucket1 < this.numFeatureBuckets; featureBucket1++ {
+      for featureBucket2 := 0; featureBucket2 < this.numFeatureBuckets; featureBucket2++ {
+         var jointProb float64 = jointProbabilities[featureIndex1][featureIndex2][featureBucket1][featureBucket2];
+         var marginalProb1 = marginalProbabilities[featureIndex1][featureBucket1];
+         var marginalProb2 = marginalProbabilities[featureIndex2][featureBucket2];
+
+         if (jointProb == 0 || marginalProb1 == 0 || marginalProb2 == 0) {
+            continue;
+         }
+
+         mutualInfo += jointProb * math.Log2(jointProb / (marginalProb1 * marginalProb2));
+      }
+   }
+
+   return mutualInfo;
+}
+
+func (this MRMRReducer) calcMutualClassInformation(featureIndex int, marginalProbabilities [][]float64, classMarginalProbabilities []float64, classJointProbabilities [][][]float64) float64 {
+   var mutualInfo float64;
+
+   for classValueIndex := 0; classValueIndex < len(classJointProbabilities); classValueIndex++ {
+      for featureBucket := 0; featureBucket < this.numFeatureBuckets; featureBucket++ {
+         var jointProb float64 = classJointProbabilities[classValueIndex][featureIndex][featureBucket];
+         var marginalProb1 = classMarginalProbabilities[classValueIndex];
+         var marginalProb2 = marginalProbabilities[featureIndex][featureBucket];
+
+         if (jointProb == 0 || marginalProb1 == 0 || marginalProb2 == 0) {
+            continue;
+         }
+
+         mutualInfo += jointProb * math.Log2(jointProb / (marginalProb1 * marginalProb2));
+      }
+   }
+
+   return mutualInfo;
 }
 
 // Calc marginal and joint probabilities for the class label.
-func calcClassProbabilities(discreteData []base.IntTuple) (map[base.Feature]int, map[int]base.Feature, []float64, [][][]float64) {
+func (this MRMRReducer) calcClassProbabilities(discreteData []base.IntTuple) ([]float64, [][][]float64) {
    // Map out the different class labels seen in the data and assign each an index.
    var classLabelIndex int = 0;
-   // TODO(eriq): Need both?
    var classValueMap map[base.Feature]int = make(map[base.Feature]int);
-   var reverseClassValueMap map[int]base.Feature = make(map[int]base.Feature);
 
    for _, tuple := range(discreteData) {
       _, contains := classValueMap[tuple.GetClass()];
       if (!contains) {
          classValueMap[tuple.GetClass()] = classLabelIndex;
-         reverseClassValueMap[classLabelIndex] = tuple.GetClass();
          classLabelIndex++;
       }
    }
@@ -97,13 +212,13 @@ func calcClassProbabilities(discreteData []base.IntTuple) (map[base.Feature]int,
    // [classValueIndex][featureIndex][featureBucket] -> probability
    var jointProbabilities [][][]float64 = make([][][]float64, len(classValueMap));
    for _, classValueIndex := range(classValueMap) {
-      jointProbabilities[classValueIndex] = make([][]float64, discreteData[0].DataSize());
+      jointProbabilities[classValueIndex] = make([][]float64, this.fanIn);
       for featureIndex, _ := range(jointProbabilities[classValueIndex]) {
-         jointProbabilities[classValueIndex][featureIndex] = make([]float64, NUM_BUCKETS);
+         jointProbabilities[classValueIndex][featureIndex] = make([]float64, this.numFeatureBuckets);
       }
    }
 
-   for featureIndex := 0; featureIndex < discreteData[0].DataSize(); featureIndex++ {
+   for featureIndex := 0; featureIndex < this.fanIn; featureIndex++ {
       for _, tuple := range(discreteData) {
          jointProbabilities[classValueMap[tuple.GetClass()]][featureIndex][tuple.GetIntData(featureIndex)]++;
       }
@@ -118,23 +233,23 @@ func calcClassProbabilities(discreteData []base.IntTuple) (map[base.Feature]int,
       }
    }
 
-   return classValueMap, reverseClassValueMap, marginalProbabilities, jointProbabilities;
+   return marginalProbabilities, jointProbabilities;
 }
 
 // Returns: [featureIndex][bucket (happens to be an index)]marginalProbibility
-func calcAllMarginalProbabilities(discreteData []base.IntTuple) [][]float64 {
-   var probabilities [][]float64 = make([][]float64, discreteData[0].DataSize());
+func (this MRMRReducer) calcAllMarginalProbabilities(discreteData []base.IntTuple) [][]float64 {
+   var probabilities [][]float64 = make([][]float64, this.fanIn);
 
-   for featureIndex := 0; featureIndex < discreteData[0].DataSize(); featureIndex++ {
-      probabilities[featureIndex] = calcFeatureMarginalProbabilities(discreteData, featureIndex);
+   for featureIndex := 0; featureIndex < this.fanIn; featureIndex++ {
+      probabilities[featureIndex] = this.calcFeatureMarginalProbabilities(discreteData, featureIndex);
    }
 
    return probabilities;
 }
 
-func calcFeatureMarginalProbabilities(discreteData []base.IntTuple, featureIndex int) []float64 {
+func (this MRMRReducer) calcFeatureMarginalProbabilities(discreteData []base.IntTuple, featureIndex int) []float64 {
    // Note that the data is already zero'd.
-   var probabilities []float64 = make([]float64, NUM_BUCKETS);
+   var probabilities []float64 = make([]float64, this.numFeatureBuckets);
 
    for _, tuple := range(discreteData) {
       probabilities[tuple.GetIntData(featureIndex)]++;
@@ -151,8 +266,8 @@ func calcFeatureMarginalProbabilities(discreteData []base.IntTuple, featureIndex
 // Where featureIndex1 > featureIndex2 (we only need to calc half the solution space since it is symetric).
 // Note that featureIndex1 < featureIndex2 is out of bounds and featureIndex1 == featureIndex2 is invalid.
 // (We need the later to keep our indexes aligned.)
-func calcAllJointProbabilities(discreteData []base.IntTuple) [][][][]float64 {
-   var numFeatures int = discreteData[0].DataSize();
+func (this MRMRReducer) calcAllJointProbabilities(discreteData []base.IntTuple) [][][][]float64 {
+   var numFeatures int = this.fanIn;
 
    var probabilities [][][][]float64 = make([][][][]float64, numFeatures);
 
@@ -163,17 +278,17 @@ func calcAllJointProbabilities(discreteData []base.IntTuple) [][][][]float64 {
       probabilities[featureIndex1][featureIndex1] = nil;
 
       for featureIndex2 := 0; featureIndex2 < featureIndex1; featureIndex2++ {
-         probabilities[featureIndex1][featureIndex2] = calcFeatureJointProbabilities(discreteData, featureIndex1, featureIndex2);
+         probabilities[featureIndex1][featureIndex2] = this.calcFeatureJointProbabilities(discreteData, featureIndex1, featureIndex2);
       }
    }
 
    return probabilities;
 }
 
-func calcFeatureJointProbabilities(discreteData []base.IntTuple, featureIndex1 int, featureIndex2 int) [][]float64 {
-   var probabilities [][]float64 = make([][]float64, NUM_BUCKETS);
-   for i := 0; i < NUM_BUCKETS; i++ {
-      probabilities[i] = make([]float64, NUM_BUCKETS);
+func (this MRMRReducer) calcFeatureJointProbabilities(discreteData []base.IntTuple, featureIndex1 int, featureIndex2 int) [][]float64 {
+   var probabilities [][]float64 = make([][]float64, this.numFeatureBuckets);
+   for i := 0; i < this.numFeatureBuckets; i++ {
+      probabilities[i] = make([]float64, this.numFeatureBuckets);
    }
 
    for _, tuple := range(discreteData) {
@@ -189,7 +304,7 @@ func calcFeatureJointProbabilities(discreteData []base.IntTuple, featureIndex1 i
    return probabilities;
 }
 
-func printJointProbabilities(jointProbabilities [][][][]float64) {
+func (this MRMRReducer) printJointProbabilities(jointProbabilities [][][][]float64) {
    for featureIndex1, _ := range(jointProbabilities) {
       if (featureIndex1 == 0) {
          continue;

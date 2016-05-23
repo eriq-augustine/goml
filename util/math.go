@@ -7,6 +7,24 @@ import (
 
 const EPSILON = 0.00000001
 
+// Does not handle NaN, Inf, -Inf.
+func MaxInt(a int, b int) int {
+   if (a > b) {
+      return a;
+   }
+
+   return b;
+}
+
+// Does not handle NaN, Inf, -Inf.
+func MinInt(a int, b int) int {
+   if (a < b) {
+      return a;
+   }
+
+   return b;
+}
+
 func FloatEquals(a float64, b float64) bool {
    return math.Abs(a-b) < EPSILON
 }
