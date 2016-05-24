@@ -4,22 +4,33 @@ import (
    "sort"
 
    "github.com/eriq-augustine/goml/base"
+   "github.com/eriq-augustine/goml/features"
 )
 
 type Knn struct {
-   k            int
-   distancer    base.Distancer
+   k int
+   reducer features.Reducer
+   distancer base.Distancer
    trainingData []base.NumericTuple
 }
 
-func NewKnn(k int, distancer base.Distancer) *Knn {
-   if distancer == nil {
+func NewKnn(k int, reducer features.Reducer, distancer base.Distancer) *Knn {
+   if (k <= 0) {
+      panic("k must be >= 1");
+   }
+
+   if (reducer == nil) {
+      reducer = features.NoReducer{};
+   }
+
+   if (distancer == nil) {
       distancer = base.Euclidean{};
    }
 
    var knn Knn = Knn{
-      k:            k,
-      distancer:    distancer,
+      k: k,
+      reducer: reducer,
+      distancer: distancer,
       trainingData: nil,
    };
 
@@ -28,37 +39,52 @@ func NewKnn(k int, distancer base.Distancer) *Knn {
 
 // TODO(eriq): Verify dimensions.
 // The Knn now owns |data|.
-func (classy *Knn) Train(data []base.Tuple) {
-   classy.trainingData = make([]base.NumericTuple, len(data));
+func (this *Knn) Train(data []base.Tuple) {
+   this.reducer.Init(data);
+   data = this.reducer.Reduce(data);
+
+   this.trainingData = make([]base.NumericTuple, len(data));
    for i, tuple := range(data) {
       numericTuple, ok := tuple.(base.NumericTuple);
       if (!ok) {
          panic("KNN only supports taining on NumericTuple");
       }
 
-      classy.trainingData[i] = numericTuple;
+      this.trainingData[i] = numericTuple;
    }
 }
 
 // TODO(eriq): Verify dimensions.
 // TODO(eriq): Parallelize
-func (classy Knn) Classify(tuple base.Tuple) interface{} {
-   numericTuple, ok := tuple.(base.NumericTuple);
-   if (!ok) {
-      panic("KNN only supports classifying NumericTuple");
+func (this Knn) Classify(tuples []base.Tuple) []base.Feature {
+   tuples = this.reducer.Reduce(tuples);
+
+   var results []base.Feature = make([]base.Feature, len(tuples));
+
+   for i, tuple := range(tuples) {
+      numericTuple, ok := tuple.(base.NumericTuple);
+      if (!ok) {
+         panic("KNN only supports classifying NumericTuple");
+      }
+
+      results[i] = this.classifySingle(numericTuple);
    }
 
-   var distances []DistanceRecord = make([]DistanceRecord, len(classy.trainingData));
+   return results;
+}
 
-   for i, trainingTuple := range classy.trainingData {
-      distances[i] = DistanceRecord{classy.distancer.Distance(trainingTuple, numericTuple), i};
+func (this Knn) classifySingle(numericTuple base.NumericTuple) base.Feature {
+   var distances []DistanceRecord = make([]DistanceRecord, len(this.trainingData));
+
+   for i, trainingTuple := range this.trainingData {
+      distances[i] = DistanceRecord{this.distancer.Distance(trainingTuple, numericTuple), i};
    }
 
    sort.Sort(ByDistance(distances));
 
-   var classes map[interface{}]int = make(map[interface{}]int);
-   for i := 0; i < classy.k; i++ {
-      var targetTuple base.Tuple = classy.trainingData[distances[i].Index];
+   var classes map[base.Feature]int = make(map[base.Feature]int);
+   for i := 0; i < this.k; i++ {
+      var targetTuple base.Tuple = this.trainingData[distances[i].Index];
       count, ok := classes[targetTuple.GetClass()];
       if ok {
          classes[targetTuple.GetClass()] = count + 1;
@@ -70,13 +96,12 @@ func (classy Knn) Classify(tuple base.Tuple) interface{} {
    return bestClass(classes);
 }
 
-// TODO(eriq): Len
-func bestClass(classes map[interface{}]int) interface{} {
-   var bestCount int = 0;
-   var bestValue interface{} = nil;
+func bestClass(classes map[base.Feature]int) base.Feature {
+   var bestCount int = -1;
+   var bestValue base.Feature = nil;
 
-   for value, count := range classes {
-      if count > bestCount {
+   for value, count := range(classes) {
+      if (bestCount == -1 || count > bestCount) {
          bestCount = count;
          bestValue = value;
       }

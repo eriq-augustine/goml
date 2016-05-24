@@ -6,5 +6,5 @@ import (
 
 type Classifier interface {
    Train([]base.Tuple)
-   Classify(base.Tuple) interface{}
+   Classify([]base.Tuple) []base.Feature
 }
