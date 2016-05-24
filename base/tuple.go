@@ -123,3 +123,18 @@ func (this IntegerTuple) DataSize() int {
 func TupleEquals(a Tuple, b Tuple) bool {
    return reflect.DeepEqual(a, b);
 }
+
+// Return a new tuple with the given type and data.
+func NewTypedTuple(tupleType reflect.Type, data []interface{}, class interface{}) Tuple {
+   var newTuple Tuple;
+
+   if (tupleType == reflect.TypeOf(IntegerTuple{})) {
+      newTuple = NewIntTuple(data, class);
+   } else if (tupleType == reflect.TypeOf(FloatTuple{})) {
+      newTuple = NewNumericTuple(data, class);
+   } else {
+      newTuple = NewTuple(data, class);
+   }
+
+   return newTuple;
+}
