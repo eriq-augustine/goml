@@ -1,6 +1,7 @@
 package base
 
 import (
+   "math/rand"
    "reflect"
 )
 
@@ -137,4 +138,12 @@ func NewTypedTuple(tupleType reflect.Type, data []interface{}, class interface{}
    }
 
    return newTuple;
+}
+
+// Fisher–Yates (Sattolo variant).
+func ShuffleTuples(slice []Tuple) {
+   for i, _ := range(slice) {
+      var j int = rand.Intn(i + 1);
+      slice[i], slice[j] = slice[j], slice[i];
+   }
 }

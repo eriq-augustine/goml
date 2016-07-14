@@ -17,7 +17,7 @@ type knnTestCase struct {
    Expected []base.Feature
 }
 
-func TestBase(t *testing.T) {
+func TestKnnBase(t *testing.T) {
    var testCases []knnTestCase = []knnTestCase{
       knnTestCase{
          "Base - 3",
@@ -100,7 +100,7 @@ func TestBase(t *testing.T) {
       // Go over each value explicitly to make output more readable.
       for i, _ := range(actual) {
          if (actual[i] != testCase.Expected[i]) {
-            t.Errorf("(%s)[%d] -- Bad classification. Expected: %v, Got: %v", testCase.Expected[i], actual[i]);
+            t.Errorf("(%s)[%d] -- Bad classification. Expected: %v, Got: %v", testCase.Name, i, testCase.Expected[i], actual[i]);
          }
       }
    }

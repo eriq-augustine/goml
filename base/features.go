@@ -160,6 +160,8 @@ func InferFeature(data interface{}) Feature {
       return data;
    case StringFeature:
       return data;
+   case BoolFeature:
+      return data;
    // Check for builtin types.
    case int:
       return Int(data)

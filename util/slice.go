@@ -1,6 +1,7 @@
 package util
 
 import (
+   "math/rand"
    "reflect"
 )
 
@@ -17,4 +18,12 @@ func InterfaceSlice(slice interface{}) []interface{} {
    }
 
    return ret;
+}
+
+// Fisher–Yates (Sattolo variant).
+func ShuffleSlice(slice []interface{}) {
+   for i, _ := range(slice) {
+      var j int = rand.Intn(i + 1);
+      slice[i], slice[j] = slice[j], slice[i];
+   }
 }

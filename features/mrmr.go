@@ -21,7 +21,7 @@ type MRMRReducer struct{
    features []int
 }
 
-func NewMRMRReducer(numFeatures int, numBuckets int) MRMRReducer {
+func NewMRMRReducer(numFeatures int, numBuckets int) *MRMRReducer {
    if (numFeatures <= 0) {
       numFeatures = DEFAULT_NUM_FEATURES;
    }
@@ -30,7 +30,7 @@ func NewMRMRReducer(numFeatures int, numBuckets int) MRMRReducer {
       numBuckets = DEFAULT_NUM_BUCKETS;
    }
 
-   return MRMRReducer{
+   return &MRMRReducer{
       fanIn: -1,
       fanOut: numFeatures,
       numFeatureBuckets: numBuckets,

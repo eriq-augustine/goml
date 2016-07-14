@@ -114,7 +114,7 @@ func TestDiscretizeNumericFeatureBase(t *testing.T) {
    };
 
    for _, testCase := range(testData) {
-      var reducer MRMRReducer = NewMRMRReducer(testCase.NumFeatures, testCase.NumBuckets);
+      var reducer *MRMRReducer = NewMRMRReducer(testCase.NumFeatures, testCase.NumBuckets);
       reducer.Init(testCase.Data);
 
       var actual base.Tuple = reducer.Reduce([]base.Tuple{testCase.RawTuple})[0];

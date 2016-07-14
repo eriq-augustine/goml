@@ -26,7 +26,11 @@ func MinInt(a int, b int) int {
 }
 
 func FloatEquals(a float64, b float64) bool {
-   return math.Abs(a-b) < EPSILON
+   return math.Abs(a - b) < EPSILON
+}
+
+func FloatToBool(val float64) bool {
+   return !FloatEquals(val, 0);
 }
 
 func IsNumeric(obj interface{}) bool {
