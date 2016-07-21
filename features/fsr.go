@@ -8,4 +8,5 @@ import (
 type Reducer interface {
    Init([]base.Tuple)
    Reduce([]base.Tuple) []base.Tuple
+   GetFeatures() []int
 }

@@ -11,3 +11,7 @@ func (reducer NoReducer) Init(tuples []base.Tuple) {}
 func (reducer NoReducer) Reduce(tuples []base.Tuple) []base.Tuple {
    return tuples;
 }
+
+func (reducer NoReducer) GetFeatures() []int {
+   return make([]int, 0);
+}

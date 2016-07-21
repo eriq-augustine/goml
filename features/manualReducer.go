@@ -23,3 +23,7 @@ func (this ManualReducer) Init(tuples []base.Tuple) {}
 func (this ManualReducer) Reduce(tuples []base.Tuple) []base.Tuple {
    return SelectFeatures(tuples, this.features);
 }
+
+func (this ManualReducer) GetFeatures() []int {
+   return append([]int(nil), this.features...);
+}

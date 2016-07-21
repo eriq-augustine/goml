@@ -19,6 +19,9 @@ type MRMRReducer struct{
    fanOut int
    numFeatureBuckets int
    features []int
+   debug bool
+   debugFirstRoundScores []float64
+   debugLastRoundScores []float64
 }
 
 func NewMRMRReducer(numFeatures int, numBuckets int) *MRMRReducer {
@@ -50,6 +53,11 @@ func (this *MRMRReducer) Init(data []base.Tuple) {
       return;
    }
 
+   if (this.debug) {
+      this.debugFirstRoundScores = make([]float64, this.fanIn);
+      this.debugLastRoundScores = make([]float64, this.fanIn);
+   }
+
    // Discretize
    var discreteData []base.IntTuple = base.DiscretizeNumericFeatures(data, this.numFeatureBuckets);
 
@@ -57,6 +65,27 @@ func (this *MRMRReducer) Init(data []base.Tuple) {
 
    // Calc
    this.features = this.chooseFeatures(this.fanIn, mutualInformation, classMutualInformation);
+}
+
+func (this MRMRReducer) GetFeatures() []int {
+   if (len(this.features) != 0) {
+      return append([]int(nil), this.features...);
+   }
+
+   var rtn []int = make([]int, this.fanOut);
+   for i := 0; i < this.fanOut; i++ {
+      rtn[i] = i;
+   }
+
+   return rtn;
+}
+
+func (this *MRMRReducer) Debug() {
+   this.debug = true;
+}
+
+func (this *MRMRReducer) GetDebugScores() ([]float64, []float64) {
+   return this.debugFirstRoundScores, this.debugLastRoundScores;
 }
 
 func (this MRMRReducer) Reduce(tuples []base.Tuple) []base.Tuple {
@@ -81,6 +110,16 @@ func (this MRMRReducer) chooseFeatures(numFeatures int, mutualInformation [][]fl
          if (bestFeatureIndex == -1 || score > bestFeatureScore) {
             bestFeatureIndex = featureIndex;
             bestFeatureScore = score;
+         }
+
+         if (this.debug) {
+            if (i == 0) {
+               this.debugFirstRoundScores[featureIndex] = score;
+            }
+
+            if (i == this.fanOut - 1) {
+               this.debugLastRoundScores[featureIndex] = score;
+            }
          }
       }
 
