@@ -82,7 +82,8 @@ func TestSvmBase(t *testing.T) {
    for _, testCase := range(testCases) {
       var svm Classifier = NewSvm(testCase.Reducer);
       svm.Train(testCase.TestData);
-      var actual []base.Feature = svm.Classify(testCase.Input);
+      var actual []base.Feature;
+      actual, _ = svm.Classify(testCase.Input);
 
       if (len(actual) != len(testCase.Expected)) {
          t.Errorf("(%s) -- Length of expected (%d) and actual (%d) do not match", testCase.Name, len(testCase.Expected), len(actual));

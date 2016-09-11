@@ -75,7 +75,7 @@ func (this *Svm) Train(rawData []base.Tuple) {
    os.Remove(trainingFile);
 }
 
-func (this Svm) Classify(tuples []base.Tuple) []base.Feature {
+func (this Svm) Classify(tuples []base.Tuple) ([]base.Feature, []float64) {
    tuples = this.reducer.Reduce(tuples);
 
    var results []base.Feature = make([]base.Feature, len(tuples));
@@ -89,7 +89,7 @@ func (this Svm) Classify(tuples []base.Tuple) []base.Feature {
       results[i] = this.classifySingle(numericTuple);
    }
 
-   return results;
+   return results, nil;
 }
 
 func (this Svm) classifySingle(numericTuple base.NumericTuple) base.Feature {

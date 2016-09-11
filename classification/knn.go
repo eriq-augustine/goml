@@ -1,10 +1,12 @@
 package classification
 
 import (
+   "fmt"
    "sort"
 
    "github.com/eriq-augustine/goml/base"
    "github.com/eriq-augustine/goml/features"
+   "github.com/eriq-augustine/goml/util"
 )
 
 type Knn struct {
@@ -56,10 +58,11 @@ func (this *Knn) Train(data []base.Tuple) {
 
 // TODO(eriq): Verify dimensions.
 // TODO(eriq): Parallelize
-func (this Knn) Classify(tuples []base.Tuple) []base.Feature {
+func (this Knn) Classify(tuples []base.Tuple) ([]base.Feature, []float64) {
    tuples = this.reducer.Reduce(tuples);
 
    var results []base.Feature = make([]base.Feature, len(tuples));
+   var confidences []float64 = make([]float64, len(tuples));
 
    for i, tuple := range(tuples) {
       numericTuple, ok := tuple.(base.NumericTuple);
@@ -67,13 +70,13 @@ func (this Knn) Classify(tuples []base.Tuple) []base.Feature {
          panic("KNN only supports classifying NumericTuple");
       }
 
-      results[i] = this.classifySingle(numericTuple);
+      results[i], confidences[i] = this.classifySingle(numericTuple);
    }
 
-   return results;
+   return results, confidences;
 }
 
-func (this Knn) classifySingle(numericTuple base.NumericTuple) base.Feature {
+func (this Knn) classifySingle(numericTuple base.NumericTuple) (base.Feature, float64) {
    var distances []DistanceRecord = make([]DistanceRecord, len(this.trainingData));
 
    for i, trainingTuple := range this.trainingData {
@@ -82,27 +85,47 @@ func (this Knn) classifySingle(numericTuple base.NumericTuple) base.Feature {
 
    sort.Sort(ByDistance(distances));
 
-   var classes map[base.Feature]int = make(map[base.Feature]int);
+   // {class -> [distance, ...], ...}
+   var classes map[base.Feature][]float64 = make(map[base.Feature][]float64);
+   // K Nearest Neighbors
    for i := 0; i < this.k; i++ {
       var targetTuple base.Tuple = this.trainingData[distances[i].Index];
-      count, ok := classes[targetTuple.GetClass()];
-      if ok {
-         classes[targetTuple.GetClass()] = count + 1;
-      } else {
-         classes[targetTuple.GetClass()] = 1;
+      classDistances, _ := classes[targetTuple.GetClass()];
+      // No need to check for existance, on nil a new slice will be created.
+      classes[targetTuple.GetClass()] = append(classDistances, distances[i].Distance);
+   }
+
+   var bestClass base.Feature = findBestClass(classes);
+
+   return bestClass, calculateScore(bestClass, classes);
+}
+
+// (1 / sum(distances) + sign(sum(distances))) + (2 * k`)
+// distances with a class that does not match the target class are negated.
+// k` = the number of matching classes (len(classes[bestClass])).
+// sign is +/- 1.
+func calculateScore(bestClass base.Feature, classes map[base.Feature][]float64) float64 {
+   var sum float64 = 0;
+   for class, distances := range(classes) {
+      for _, distance := range(distances) {
+         if (class == bestClass) {
+            sum += distance;
+         } else {
+            sum -= distance;
+         }
       }
    }
 
-   return bestClass(classes);
+   return (1.0 / (sum + float64(util.Sign(sum)))) + (2.0 * float64(len(classes[bestClass])));
 }
 
-func bestClass(classes map[base.Feature]int) base.Feature {
+func findBestClass(classes map[base.Feature][]float64) base.Feature {
    var bestCount int = -1;
    var bestValue base.Feature = nil;
 
-   for value, count := range(classes) {
-      if (bestCount == -1 || count > bestCount) {
-         bestCount = count;
+   for value, distances := range(classes) {
+      if (bestCount == -1 || len(distances) > bestCount) {
+         bestCount = len(distances);
          bestValue = value;
       }
    }

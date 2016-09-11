@@ -1,10 +1,12 @@
 package classification
 
 import (
+   "math"
    "testing"
 
    "github.com/eriq-augustine/goml/base"
    "github.com/eriq-augustine/goml/features"
+   "github.com/eriq-augustine/goml/util"
 )
 
 type knnTestCase struct {
@@ -14,8 +16,14 @@ type knnTestCase struct {
    Distancer base.Distancer
    TestData []base.Tuple
    Input []base.Tuple
-   Expected []base.Feature
+   ExpectedClasses []base.Feature
+   ExpectedConfidences []float64
 }
+
+// Confidence used in many of the test cases.
+// Where k = 3, all nearest neighbors match the class and the distances are
+// 1, 2, and 3.
+var baseConfidence float64 = (1.0 / (math.Sqrt(2) + math.Sqrt(8) + math.Sqrt(18) + 1.0)) + 6.0;
 
 func TestKnnBase(t *testing.T) {
    var testCases []knnTestCase = []knnTestCase{
@@ -40,6 +48,10 @@ func TestKnnBase(t *testing.T) {
             base.String("A"),
             base.String("B"),
          },
+         []float64{
+            baseConfidence,
+            baseConfidence,
+         },
       },
       knnTestCase{
          "Defaults - 3",
@@ -61,6 +73,10 @@ func TestKnnBase(t *testing.T) {
          []base.Feature{
             base.String("A"),
             base.String("B"),
+         },
+         []float64{
+            baseConfidence,
+            baseConfidence,
          },
       },
       knnTestCase{
@@ -84,23 +100,177 @@ func TestKnnBase(t *testing.T) {
             base.String("A"),
             base.String("B"),
          },
+         []float64{
+            baseConfidence,
+            baseConfidence,
+         },
+      },
+      knnTestCase{
+         "Confidence - 1",
+         3,
+         features.NoReducer{},
+         base.Euclidean{},
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{1, 0}, "A"),
+            base.NewIntTuple([]interface{}{0, 1}, "A"),
+            base.NewIntTuple([]interface{}{-1, 0}, "A"),
+            base.NewIntTuple([]interface{}{-100, -100}, "B"),
+            base.NewIntTuple([]interface{}{-900, -900}, "B"),
+            base.NewIntTuple([]interface{}{-110, -110}, "B"),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{0, 0}, nil),
+         },
+         []base.Feature{
+            base.String("A"),
+         },
+         []float64{
+            6.25,
+         },
+      },
+      knnTestCase{
+         "Confidence - 2",
+         3,
+         features.NoReducer{},
+         base.Euclidean{},
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{10, 0}, "A"),
+            base.NewIntTuple([]interface{}{0, 10}, "A"),
+            base.NewIntTuple([]interface{}{-10, 0}, "A"),
+            base.NewIntTuple([]interface{}{-100, -100}, "B"),
+            base.NewIntTuple([]interface{}{-900, -900}, "B"),
+            base.NewIntTuple([]interface{}{-110, -110}, "B"),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{0, 0}, nil),
+         },
+         []base.Feature{
+            base.String("A"),
+         },
+         []float64{
+            6.0 + (1.0 / 31.0),
+         },
+      },
+      knnTestCase{
+         "Confidence - 3",
+         3,
+         features.NoReducer{},
+         base.Euclidean{},
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{1, 0}, "B"),
+            base.NewIntTuple([]interface{}{0, 1}, "A"),
+            base.NewIntTuple([]interface{}{-1, 0}, "A"),
+            base.NewIntTuple([]interface{}{-100, -100}, "B"),
+            base.NewIntTuple([]interface{}{-900, -900}, "B"),
+            base.NewIntTuple([]interface{}{-110, -110}, "B"),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{0, 0}, nil),
+         },
+         []base.Feature{
+            base.String("A"),
+         },
+         []float64{
+            4.5,
+         },
+      },
+      knnTestCase{
+         "Confidence - 4",
+         3,
+         features.NoReducer{},
+         base.Euclidean{},
+         []base.Tuple{
+            base.NewNumericTuple([]interface{}{0.5, 0}, "B"),
+            base.NewIntTuple([]interface{}{0, 1}, "A"),
+            base.NewIntTuple([]interface{}{-1, 0}, "A"),
+            base.NewIntTuple([]interface{}{-100, -100}, "B"),
+            base.NewIntTuple([]interface{}{-900, -900}, "B"),
+            base.NewIntTuple([]interface{}{-110, -110}, "B"),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{0, 0}, nil),
+         },
+         []base.Feature{
+            base.String("A"),
+         },
+         []float64{
+            4.4,
+         },
+      },
+      knnTestCase{
+         "Confidence - 5",
+         3,
+         features.NoReducer{},
+         base.Euclidean{},
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{10, 0}, "B"),
+            base.NewIntTuple([]interface{}{0, 10}, "A"),
+            base.NewIntTuple([]interface{}{-10, 0}, "A"),
+            base.NewIntTuple([]interface{}{-100, -100}, "B"),
+            base.NewIntTuple([]interface{}{-900, -900}, "B"),
+            base.NewIntTuple([]interface{}{-110, -110}, "B"),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{0, 0}, nil),
+         },
+         []base.Feature{
+            base.String("A"),
+         },
+         []float64{
+            4.0 + (1.0 / 11.0),
+         },
+      },
+      knnTestCase{
+         "Confidence - 6",
+         3,
+         features.NoReducer{},
+         base.Euclidean{},
+         []base.Tuple{
+            base.NewNumericTuple([]interface{}{0.5, 0}, "B"),
+            base.NewIntTuple([]interface{}{0, 10}, "A"),
+            base.NewIntTuple([]interface{}{-10, 0}, "A"),
+            base.NewIntTuple([]interface{}{-100, -100}, "B"),
+            base.NewIntTuple([]interface{}{-900, -900}, "B"),
+            base.NewIntTuple([]interface{}{-110, -110}, "B"),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{0, 0}, nil),
+         },
+         []base.Feature{
+            base.String("A"),
+         },
+         []float64{
+            4.0 + (1.0 / 20.5),
+         },
       },
    };
 
    for _, testCase := range(testCases) {
       var knn Classifier = NewKnn(testCase.K, testCase.Reducer, testCase.Distancer);
       knn.Train(testCase.TestData);
-      var actual []base.Feature = knn.Classify(testCase.Input);
+      var actualClasses []base.Feature;
+      var actualConfidences []float64;
 
-      if (len(actual) != len(testCase.Expected)) {
-         t.Errorf("(%s) -- Length of expected (%d) and actual (%d) do not match", testCase.Name, len(testCase.Expected), len(actual));
+      actualClasses, actualConfidences = knn.Classify(testCase.Input);
+
+      if (len(actualClasses) != len(testCase.ExpectedClasses)) {
+         t.Errorf("(%s) -- Length of expected (%d) and actual classes (%d) do not match", testCase.Name, len(testCase.ExpectedClasses), len(actualClasses));
+         continue;
+      }
+
+      if (len(actualConfidences) != len(testCase.ExpectedConfidences)) {
+         t.Errorf("(%s) -- Length of expected (%d) and actual classes (%d) do not match", testCase.Name, len(testCase.ExpectedClasses), len(actualClasses));
          continue;
       }
 
       // Go over each value explicitly to make output more readable.
-      for i, _ := range(actual) {
-         if (actual[i] != testCase.Expected[i]) {
-            t.Errorf("(%s)[%d] -- Bad classification. Expected: %v, Got: %v", testCase.Name, i, testCase.Expected[i], actual[i]);
+      for i, _ := range(actualClasses) {
+         if (actualClasses[i] != testCase.ExpectedClasses[i]) {
+            t.Errorf("(%s)[%d] -- Bad classification. Expected classes: %v, Got: %v", testCase.Name, i, testCase.ExpectedClasses[i], actualClasses[i]);
+         }
+
+         if (!util.FloatEquals(actualConfidences[i], testCase.ExpectedConfidences[i])) {
+            t.Errorf("(%s)[%d] -- Bad classification. Expected confidence: %v, Got: %v", testCase.Name, i, testCase.ExpectedConfidences[i], actualConfidences[i]);
          }
       }
    }

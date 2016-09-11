@@ -7,6 +7,14 @@ import (
 
 const EPSILON = 0.00000001
 
+func Sign(val float64) int {
+   if (val < 0) {
+      return -1;
+   }
+
+   return 1;
+}
+
 // Does not handle NaN, Inf, -Inf.
 func MaxInt(a int, b int) int {
    if (a > b) {
