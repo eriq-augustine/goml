@@ -1,7 +1,6 @@
 package classification
 
 import (
-   "fmt"
    "sort"
 
    "github.com/eriq-augustine/goml/base"
