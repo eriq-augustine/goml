@@ -13,8 +13,11 @@ const (
    DEFAULT_NUM_BUCKETS = 20
 )
 
+// Multiple calls to Init() are ignored.
+
 // http://dl.acm.org/citation.cfm?id=1070809
 type MRMRReducer struct{
+   inited bool // true if Init() has already been called for this MRMR.
    fanIn int
    fanOut int
    numFeatureBuckets int
@@ -35,6 +38,7 @@ func NewMRMRReducer(numFeatures int, numBuckets int) *MRMRReducer {
    }
 
    return &MRMRReducer{
+      inited: false,
       fanIn: -1,
       fanOut: numFeatures,
       numFeatureBuckets: numBuckets,
@@ -43,6 +47,10 @@ func NewMRMRReducer(numFeatures int, numBuckets int) *MRMRReducer {
 
 // It is required that all class labels be present in |data|.
 func (this *MRMRReducer) Init(data []base.Tuple) {
+   if (this.inited) {
+      return;
+   }
+
    if (len(data) == 0) {
       panic("Empty training set");
    }
@@ -67,6 +75,8 @@ func (this *MRMRReducer) Init(data []base.Tuple) {
 
    // Calc
    this.features = this.chooseFeatures(this.fanIn, mutualInformation, classMutualInformation);
+
+   this.inited = true;
 }
 
 func (this MRMRReducer) GetFeatures() []int {

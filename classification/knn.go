@@ -1,11 +1,17 @@
 package classification
 
 import (
+   "math"
+   "runtime"
    "sort"
 
    "github.com/eriq-augustine/goml/base"
    "github.com/eriq-augustine/goml/features"
    "github.com/eriq-augustine/goml/util"
+)
+
+const (
+   KNN_MIN_WORK_PER_WORKER = 1000
 )
 
 type Knn struct {
@@ -75,12 +81,8 @@ func (this Knn) Classify(tuples []base.Tuple) ([]base.Feature, []float64) {
    return results, confidences;
 }
 
-func (this Knn) classifySingle(numericTuple base.NumericTuple) (base.Feature, float64) {
-   var distances []DistanceRecord = make([]DistanceRecord, len(this.trainingData));
-
-   for i, trainingTuple := range this.trainingData {
-      distances[i] = DistanceRecord{this.distancer.Distance(trainingTuple, numericTuple), i};
-   }
+func (this Knn) classifySingle(classifyTuple base.NumericTuple) (base.Feature, float64) {
+   var distances []DistanceRecord = this.calculateDistances(classifyTuple);
 
    sort.Sort(ByDistance(distances));
 
@@ -97,6 +99,35 @@ func (this Knn) classifySingle(numericTuple base.NumericTuple) (base.Feature, fl
    var bestClass base.Feature = findBestClass(classes);
 
    return bestClass, calculateScore(bestClass, classes);
+}
+
+func (this Knn) calculateDistances(classifyTuple base.NumericTuple) []DistanceRecord {
+   var distances []DistanceRecord = make([]DistanceRecord, len(this.trainingData));
+
+   var numWorkers int = util.MinInt(util.MaxInt(1, len(this.trainingData) / KNN_MIN_WORK_PER_WORKER), runtime.GOMAXPROCS(0));
+   var tuplesPerWorker int = int(math.Ceil(float64(len(this.trainingData)) / float64(numWorkers)));
+
+   var results chan DistanceRecord = make(chan DistanceRecord, len(this.trainingData));
+
+   for worker := 0; worker < numWorkers; worker++ {
+      go classifyWorker(results, this.distancer, this.trainingData, classifyTuple, worker * tuplesPerWorker, tuplesPerWorker);
+   }
+
+   for i := 0; i < len(this.trainingData); i++ {
+      distances[i] = <-results;
+   }
+   close(results);
+
+   return distances;
+}
+
+// startIndex + |numberOfTuples| may be more than |trainingTuples| (if work did not divide evenly).
+func classifyWorker(results chan<-DistanceRecord, distancer base.Distancer,
+                    trainingTuples []base.NumericTuple, classifyTuple base.NumericTuple,
+                    startIndex int, numberOfTuples int) {
+   for trainingIndex := startIndex; (trainingIndex - startIndex) < numberOfTuples && trainingIndex < len(trainingTuples); trainingIndex++ {
+      results <- DistanceRecord{distancer.Distance(trainingTuples[trainingIndex], classifyTuple), trainingIndex};
+   }
 }
 
 // (1 / sum(distances) + sign(sum(distances))) + (2 * k`)

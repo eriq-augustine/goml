@@ -3,7 +3,12 @@ package base
 import (
    "math/rand"
    "reflect"
+   // "time"
 )
+
+// TEST
+// var random *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()));
+var random *rand.Rand = rand.New(rand.NewSource(4));
 
 type Tuple interface {
    GetData(index int) Feature
@@ -143,7 +148,7 @@ func NewTypedTuple(tupleType reflect.Type, data []interface{}, class interface{}
 // Fisher–Yates (Sattolo variant).
 func ShuffleTuples(slice []Tuple) {
    for i, _ := range(slice) {
-      var j int = rand.Intn(i + 1);
+      var j int = random.Intn(i + 1);
       slice[i], slice[j] = slice[j], slice[i];
    }
 }
