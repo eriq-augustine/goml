@@ -2,7 +2,6 @@ package classification
 
 import (
    "math"
-   "runtime"
    "sort"
 
    "github.com/eriq-augustine/goml/base"
@@ -104,7 +103,7 @@ func (this Knn) classifySingle(classifyTuple base.NumericTuple) (base.Feature, f
 func (this Knn) calculateDistances(classifyTuple base.NumericTuple) []DistanceRecord {
    var distances []DistanceRecord = make([]DistanceRecord, len(this.trainingData));
 
-   var numWorkers int = util.MinInt(util.MaxInt(1, len(this.trainingData) / KNN_MIN_WORK_PER_WORKER), runtime.GOMAXPROCS(0));
+   var numWorkers int = util.MinInt(util.MaxInt(1, len(this.trainingData) / KNN_MIN_WORK_PER_WORKER), base.GetMaxProcs());
    var tuplesPerWorker int = int(math.Ceil(float64(len(this.trainingData)) / float64(numWorkers)));
 
    var results chan DistanceRecord = make(chan DistanceRecord, len(this.trainingData));

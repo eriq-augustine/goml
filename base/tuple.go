@@ -1,15 +1,5 @@
 package base
 
-import (
-   "math/rand"
-   "reflect"
-   // "time"
-)
-
-// TEST
-// var random *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()));
-var random *rand.Rand = rand.New(rand.NewSource(4));
-
 type Tuple interface {
    GetData(index int) Feature
    SetData(index int, newValue interface{})
@@ -122,33 +112,4 @@ func (this IntegerTuple) GetClass() Feature {
 
 func (this IntegerTuple) DataSize() int {
    return len(this.Data);
-}
-
-// Util
-
-func TupleEquals(a Tuple, b Tuple) bool {
-   return reflect.DeepEqual(a, b);
-}
-
-// Return a new tuple with the given type and data.
-func NewTypedTuple(tupleType reflect.Type, data []interface{}, class interface{}) Tuple {
-   var newTuple Tuple;
-
-   if (tupleType == reflect.TypeOf(IntegerTuple{})) {
-      newTuple = NewIntTuple(data, class);
-   } else if (tupleType == reflect.TypeOf(FloatTuple{})) {
-      newTuple = NewNumericTuple(data, class);
-   } else {
-      newTuple = NewTuple(data, class);
-   }
-
-   return newTuple;
-}
-
-// Fisher–Yates (Sattolo variant).
-func ShuffleTuples(slice []Tuple) {
-   for i, _ := range(slice) {
-      var j int = random.Intn(i + 1);
-      slice[i], slice[j] = slice[j], slice[i];
-   }
 }
