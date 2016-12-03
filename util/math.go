@@ -91,3 +91,38 @@ func NumericValue(value interface{}) float64 {
       panic(fmt.Sprintf("Unknown type for numeric conversion: %T", value))
    }
 }
+
+// The logSumExp trick to prevent over/under-flow..
+// The elements of the array need to be exp'd, summed, and then log of the sum needs to be taken.
+func LogSumExp(values []float64) float64 {
+   _, maxVal := Max(values);
+
+   var sum float64;
+   for _, value := range(values) {
+      sum += math.Exp(value - maxVal);
+   }
+
+   return maxVal + math.Log(sum);
+}
+
+func Max(values []float64) (int, float64) {
+   if (len(values) == 0) {
+      panic("No values sent to max.");
+   }
+
+   var maxIndex int = 0;
+   var maxValue float64 = values[0];
+
+   for i, value := range(values) {
+      if (value > maxValue) {
+         maxValue = value;
+         maxIndex = i;
+      }
+   }
+
+   return maxIndex, maxValue;
+}
+
+func Sigmoid(val float64) float64 {
+   return 1.0 / (1.0 + math.Exp(-1.0 * val));
+}
