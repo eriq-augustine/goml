@@ -1,4 +1,4 @@
-package util
+package optimize
 
 import (
    "math"
@@ -9,13 +9,6 @@ const (
    OPTIMIZER_GD_DEFAULT_ALPHA = 1e-4
    OPTIMIZER_GD_DEFAULT_TOLERENCE = 1e-4
 )
-
-type OptimizeFunction func([]float64) float64;
-type OptimizeFunctionGradient func([]float64) []float64;
-
-type Optimizer interface {
-   Optimize(params []float64, function OptimizeFunction, gradient OptimizeFunctionGradient) []float64
-}
 
 type GradientDescent struct {
    maxIterations int
@@ -45,12 +38,12 @@ func NewGradientDescent(maxIterations int, alpha float64, tolerence float64) *Gr
    return &gd;
 }
 
-func (this GradientDescent) Optimize(initialParams []float64, function OptimizeFunction, gradient OptimizeFunctionGradient) []float64 {
+func (this GradientDescent) Optimize(initialParams []float64, objective ObjectiveFunction, gradient ObjectiveFunctionGradient) []float64 {
    // Make a copy so we don't trash the caller's.
    var params []float64 = append([]float64{}, initialParams...);
 
 	// First run
-   var value float64 = function(params);
+   var value float64 = objective(params);
    for iteration := 0; iteration < this.maxIterations; iteration++ {
       // Modify weights
       var gradients []float64 = gradient(params);
@@ -58,7 +51,7 @@ func (this GradientDescent) Optimize(initialParams []float64, function OptimizeF
          params[paramIndex] -= this.alpha * gradients[paramIndex];
       }
 
-      var nextValue float64 = function(params);
+      var nextValue float64 = objective(params);
       if (math.Abs(nextValue - value) < this.tolerence) {
          break;
       }
@@ -67,4 +60,12 @@ func (this GradientDescent) Optimize(initialParams []float64, function OptimizeF
    }
 
    return params;
+}
+
+func (this GradientDescent) OptimizeBatch(initialParams []float64, points []int, objective ObjectiveFunction, gradient ObjectiveBatchFunctionGradient) []float64 {
+   panic("GradientDescent does not support batches.");
+}
+
+func (this GradientDescent) SupportsBatch() bool {
+   return false;
 }

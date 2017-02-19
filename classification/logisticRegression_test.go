@@ -5,13 +5,13 @@ import (
 
    "github.com/eriq-augustine/goml/base"
    "github.com/eriq-augustine/goml/features"
-   "github.com/eriq-augustine/goml/util"
+   "github.com/eriq-augustine/goml/optimize"
 )
 
 type lrTestCase struct {
    Name string
    Reducer features.Reducer
-   Optimizer util.Optimizer
+   Optimizer optimize.Optimizer
    L2Penalty float64
    TestData []base.Tuple
    Input []base.Tuple
@@ -20,11 +20,49 @@ type lrTestCase struct {
 }
 
 func TestLogisticRegressionBase(t *testing.T) {
+   fakeDefaultDataTest, fakeDefaultDataTestClasses := base.StripClasses([]base.Tuple(base.FakeDataDefault()));
+   var fakeDefaultDataTestConfidences []float64 = make([]float64, len(fakeDefaultDataTest));
+   for i, _ := range(fakeDefaultDataTest) {
+      fakeDefaultDataTestConfidences[i] = 0.95;
+   }
+
+   fakeLargeDataTest, fakeLargeDataTestClasses := base.StripClasses([]base.Tuple(base.FakeData(200, 3, 100, 0, nil, nil, 4)));
+   var fakeLargeDataTestConfidences []float64 = make([]float64, len(fakeLargeDataTest));
+   for i, _ := range(fakeLargeDataTest) {
+      fakeLargeDataTestConfidences[i] = 0.75;
+   }
+
    var testCases []lrTestCase = []lrTestCase{
       lrTestCase{
-         "Base",
+         "Base - GD",
          features.NoReducer{},
-         util.NewGradientDescent(0, 0, 0),
+         optimize.NewGradientDescent(0, 0, 0),
+         1.0,
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{10, 10}, 1),
+            base.NewIntTuple([]interface{}{9, 9}, 1),
+            base.NewIntTuple([]interface{}{11, 11}, 1),
+            base.NewIntTuple([]interface{}{-10, -10}, 0),
+            base.NewIntTuple([]interface{}{-9, -9}, 0),
+            base.NewIntTuple([]interface{}{-11, -11}, 0),
+         },
+         []base.Tuple{
+            base.NewIntTuple([]interface{}{8, 8}, nil),
+            base.NewIntTuple([]interface{}{-8, -8}, nil),
+         },
+         []base.Feature{
+            base.Int(1),
+            base.Int(0),
+         },
+         []float64{
+            0.9,
+            0.9,
+         },
+      },
+      lrTestCase{
+         "Base - SGD",
+         features.NoReducer{},
+         optimize.NewSGD(0, 0, 0, 0),
          1.0,
          []base.Tuple{
             base.NewIntTuple([]interface{}{10, 10}, 1),
@@ -300,6 +338,26 @@ func TestLogisticRegressionBase(t *testing.T) {
             0.9,
          },
       },
+      lrTestCase{
+         "FakeDataDefault",
+         features.NoReducer{},
+         nil,
+         -1,
+         base.FakeDataDefault(),
+         fakeDefaultDataTest,
+         fakeDefaultDataTestClasses,
+         fakeDefaultDataTestConfidences,
+      },
+      lrTestCase{
+         "FakeDataLarge",
+         features.NoReducer{},
+         nil,
+         -1,
+         base.FakeData(2000, 3, 100, 0, nil, nil, 4),
+         fakeLargeDataTest,
+         fakeLargeDataTestClasses,
+         fakeLargeDataTestConfidences,
+      },
    };
 
    for _, testCase := range(testCases) {
@@ -316,7 +374,7 @@ func TestLogisticRegressionBase(t *testing.T) {
       }
 
       if (len(actualConfidences) != len(testCase.MinExpectedConfidences)) {
-         t.Errorf("(%s) -- Length of expected (%d) and actual classes (%d) do not match", testCase.Name, len(testCase.ExpectedClasses), len(actualClasses));
+         t.Errorf("(%s) -- Length of expected (%d) and actual confidences (%d) do not match", testCase.Name, len(testCase.MinExpectedConfidences), len(actualConfidences));
          continue;
       }
 

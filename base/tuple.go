@@ -4,7 +4,9 @@ type Tuple interface {
    GetData(index int) Feature
    SetData(index int, newValue interface{})
    GetClass() Feature
+   SetClass(newClass interface{})
    DataSize() int
+   IsNumeric() bool
 }
 
 type NumericTuple interface {
@@ -26,7 +28,7 @@ type GeneralTuple struct {
 
 // Feature types will be inferred.
 func NewTuple(data []interface{}, class interface{}) Tuple {
-   return GeneralTuple{InferFeatures(data), InferFeature(class)};
+   return &GeneralTuple{InferFeatures(data), InferFeature(class)};
 }
 
 func (this GeneralTuple) GetData(index int) Feature {
@@ -41,8 +43,16 @@ func (this GeneralTuple) GetClass() Feature {
    return this.Class;
 }
 
+func (this *GeneralTuple) SetClass(newClass interface{}) {
+   this.Class = InferFeature(newClass);
+}
+
 func (this GeneralTuple) DataSize() int {
    return len(this.Data);
+}
+
+func (this GeneralTuple) IsNumeric() bool {
+   return false;
 }
 
 // Numeric
@@ -52,9 +62,18 @@ type FloatTuple struct {
    Class Feature
 }
 
+func NewFloatTuple(data []float64, class interface{}) NumericTuple {
+   var tupleData []NumericFeature = make([]NumericFeature, len(data));
+   for i, _ := range(data) {
+      tupleData[i] = Float(data[i]);
+   }
+
+   return &FloatTuple{tupleData, InferFeature(class)};
+}
+
 // Feature types will be inferred.
 func NewNumericTuple(data []interface{}, class interface{}) NumericTuple {
-   return FloatTuple{InferNumericFeatures(data), InferFeature(class)};
+   return &FloatTuple{InferNumericFeatures(data), InferFeature(class)};
 }
 
 func (this FloatTuple) GetData(index int) Feature {
@@ -73,8 +92,16 @@ func (this FloatTuple) GetClass() Feature {
    return this.Class;
 }
 
+func (this *FloatTuple) SetClass(newClass interface{}) {
+   this.Class = InferFeature(newClass);
+}
+
 func (this FloatTuple) DataSize() int {
    return len(this.Data);
+}
+
+func (this FloatTuple) IsNumeric() bool {
+   return true;
 }
 
 // Integer
@@ -87,7 +114,7 @@ type IntegerTuple struct {
 
 // Feature types will be inferred.
 func NewIntTuple(data []interface{}, class interface{}) IntTuple {
-   return IntegerTuple{InferIntFeatures(data), InferFeature(class)};
+   return &IntegerTuple{InferIntFeatures(data), InferFeature(class)};
 }
 
 func (this IntegerTuple) GetData(index int) Feature {
@@ -110,6 +137,14 @@ func (this IntegerTuple) GetClass() Feature {
    return this.Class;
 }
 
+func (this *IntegerTuple) SetClass(newClass interface{}) {
+   this.Class = InferFeature(newClass);
+}
+
 func (this IntegerTuple) DataSize() int {
    return len(this.Data);
+}
+
+func (this IntegerTuple) IsNumeric() bool {
+   return true;
 }

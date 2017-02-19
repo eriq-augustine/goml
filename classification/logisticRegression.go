@@ -6,6 +6,7 @@ import (
 
    "github.com/eriq-augustine/goml/base"
    "github.com/eriq-augustine/goml/features"
+   "github.com/eriq-augustine/goml/optimize"
    "github.com/eriq-augustine/goml/util"
 )
 
@@ -15,7 +16,7 @@ const (
 
 type LogisticRegression struct {
    reducer features.Reducer
-   optimizer util.Optimizer
+   optimizer optimize.Optimizer
    l2Penalty float64
 
    // [class][feature]
@@ -25,13 +26,13 @@ type LogisticRegression struct {
 }
 
 // Note that 0 is a valid value for |l2Penalty|, pass -1 for default.
-func NewLogisticRegression(reducer features.Reducer, optimizer util.Optimizer, l2Penalty float64) *LogisticRegression {
+func NewLogisticRegression(reducer features.Reducer, optimizer optimize.Optimizer, l2Penalty float64) *LogisticRegression {
    if (reducer == nil) {
       reducer = features.NoReducer{};
    }
 
    if (optimizer == nil) {
-      optimizer = util.NewGradientDescent(0, 0, 0);
+      optimizer = optimize.NewSGD(0, 0, 0, 0);
    }
 
    if (l2Penalty < 0) {
@@ -88,11 +89,21 @@ func (this *LogisticRegression) train(tuples []base.NumericTuple) {
 
    // Weights (|labels| x |features|) + Intercepts (|labels|)
    var initialParams []float64 = make([]float64, len(this.labels) * (1 + tuples[0].DataSize()));
-   this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.Optimize(
-      initialParams,
-      func(params []float64) float64 { return this.negativeLogLikelihoodOptimize(tuples, params); },
-      func(params []float64) []float64 { return this.negativeLogLikelihoodGradientOptimize(tuples, params); },
-   ));
+
+   if (this.optimizer.SupportsBatch()) {
+      this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.OptimizeBatch(
+         initialParams,
+         util.RangeSlice(len(tuples)),
+         func(params []float64) float64 { return this.negativeLogLikelihoodOptimize(tuples, params); },
+         func(params []float64, points []int) []float64 { return this.negativeLogLikelihoodGradientBatchOptimize(tuples, params, points); },
+      ));
+   } else {
+      this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.Optimize(
+         initialParams,
+         func(params []float64) float64 { return this.negativeLogLikelihoodOptimize(tuples, params); },
+         func(params []float64) []float64 { return this.negativeLogLikelihoodGradientOptimize(tuples, params); },
+      ));
+   }
 }
 
 func (this LogisticRegression) Classify(tuples []base.Tuple) ([]base.Feature, []float64) {
@@ -259,7 +270,7 @@ func (this LogisticRegression) negativeLogLikelihoodOptimize(
    return negativeLogLikelihood(weights, intercepts, this.l2Penalty, tuples, this.labels);
 }
 
-// A wrapper for an optimizer function for NNL.
+// A wrapper for an optimizer function for NLL.
 // The first param will be curried.
 func (this LogisticRegression) negativeLogLikelihoodGradientOptimize(
       tuples []base.NumericTuple,
@@ -283,6 +294,15 @@ func (this LogisticRegression) negativeLogLikelihoodGradientOptimize(
    }
 
    return gradients;
+}
+
+// A wrapper for a batch optimizer function for NLL.
+// The first param will be curried.
+func (this LogisticRegression) negativeLogLikelihoodGradientBatchOptimize(
+      tuples []base.NumericTuple,
+      params []float64,
+      points []int) []float64 {
+   return this.negativeLogLikelihoodGradientOptimize(base.SelectNumericTuples(tuples, points), params);
 }
 
 // TODO(eriq): Optimize

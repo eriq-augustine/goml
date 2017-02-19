@@ -27,3 +27,19 @@ func ShuffleSlice(slice []interface{}) {
       slice[i], slice[j] = slice[j], slice[i];
    }
 }
+
+func ShuffleIntSlice(slice []int) {
+   for i, _ := range(slice) {
+      var j int = rand.Intn(i + 1);
+      slice[i], slice[j] = slice[j], slice[i];
+   }
+}
+
+// Make a slice with the indecies [0, size).
+func RangeSlice(size int) []int {
+   var rtn []int = make([]int, size);
+   for i := 0; i < size; i++ {
+      rtn[i] = i;
+   }
+   return rtn;
+}

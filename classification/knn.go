@@ -1,6 +1,7 @@
 package classification
 
 import (
+   "fmt"
    "math"
    "sort"
 
@@ -53,7 +54,7 @@ func (this *Knn) Train(data []base.Tuple) {
    for i, tuple := range(data) {
       numericTuple, ok := tuple.(base.NumericTuple);
       if (!ok) {
-         panic("KNN only supports taining on NumericTuple");
+         panic(fmt.Sprintf("KNN only supports taining on NumericTuple. Found type: %T", tuple));
       }
 
       this.trainingData[i] = numericTuple;
