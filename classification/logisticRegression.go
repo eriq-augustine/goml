@@ -8,6 +8,8 @@ import (
    "github.com/eriq-augustine/goml/features"
    "github.com/eriq-augustine/goml/optimize"
    "github.com/eriq-augustine/goml/util"
+
+   "github.com/gonum/blas/blas64"
 )
 
 const (
@@ -57,14 +59,30 @@ func (this *LogisticRegression) Train(tuples []base.Tuple) {
    tuples = this.reducer.Reduce(tuples);
 
    var numFeatures int = -1;
-   var numericTuples []base.NumericTuple = make([]base.NumericTuple, len(tuples));
+   var numericData [][]float64 = make([][]float64, len(tuples));
+   var dataLabels []int = make([]int, len(tuples));
+
+   // Note all the labels we have seen and assign them an arbitrary identifier (index into this.labels).
+   this.labels = make([]base.Feature, 0);
+   var labelMap map[base.Feature]int = make(map[base.Feature]int);
+
    for i, tuple := range(tuples) {
       numericTuple, ok := tuple.(base.NumericTuple);
       if (!ok) {
          panic("LogisticRegression only supports classifying NumericTuple");
       }
-      numericTuples[i] = numericTuple;
 
+      _, ok = labelMap[numericTuple.GetClass()];
+      if (!ok) {
+         labelMap[numericTuple.GetClass()] = len(this.labels);
+         this.labels = append(this.labels, numericTuple.GetClass());
+      }
+
+      numericData[i] = numericTuple.ToFloatSlice();
+      // Convert all labels to their surrogate identifier.
+      dataLabels[i] = labelMap[numericTuple.GetClass()];
+
+      // Ensure all vectors are the same size.
       if (numFeatures == -1) {
          numFeatures = numericTuple.DataSize();
       } else if (numFeatures != numericTuple.DataSize()) {
@@ -73,91 +91,101 @@ func (this *LogisticRegression) Train(tuples []base.Tuple) {
       }
    }
 
-   this.train(numericTuples);
-}
-
-func (this *LogisticRegression) train(tuples []base.NumericTuple) {
-   this.labels = make([]base.Feature, 0);
-   var labelMap map[base.Feature]int = make(map[base.Feature]int);
-   for _, tuple := range(tuples) {
-      _, ok := labelMap[tuple.GetClass()];
-      if (!ok) {
-         labelMap[tuple.GetClass()] = len(this.labels);
-         this.labels = append(this.labels, tuple.GetClass());
-      }
-   }
-
-   // Weights (|labels| x |features|) + Intercepts (|labels|)
-   var initialParams []float64 = make([]float64, len(this.labels) * (1 + tuples[0].DataSize()));
-
-   if (this.optimizer.SupportsBatch()) {
-      this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.OptimizeBatch(
-         initialParams,
-         util.RangeSlice(len(tuples)),
-         func(params []float64) float64 { return this.negativeLogLikelihoodOptimize(tuples, params); },
-         func(params []float64, points []int) []float64 { return this.negativeLogLikelihoodGradientBatchOptimize(tuples, params, points); },
-      ));
-   } else {
-      this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.Optimize(
-         initialParams,
-         func(params []float64) float64 { return this.negativeLogLikelihoodOptimize(tuples, params); },
-         func(params []float64) []float64 { return this.negativeLogLikelihoodGradientOptimize(tuples, params); },
-      ));
-   }
+   this.train(numericData, dataLabels);
 }
 
 func (this LogisticRegression) Classify(tuples []base.Tuple) ([]base.Feature, []float64) {
    tuples = this.reducer.Reduce(tuples);
 
-   var numericTuples []base.NumericTuple = make([]base.NumericTuple, len(tuples));
+   var numericData [][]float64 = make([][]float64, len(tuples));
    for i, tuple := range(tuples) {
       numericTuple, ok := tuple.(base.NumericTuple);
       if (!ok) {
          panic("LogisticRegression only supports classifying NumericTuple");
       }
-      numericTuples[i] = numericTuple;
+      numericData[i] = numericTuple.ToFloatSlice();
    }
 
-   return this.classify(numericTuples);
+   classIndexes, probabilities := this.classify(numericData);
+
+   // Translate the class ids back to actual features.
+   var classes []base.Feature = make([]base.Feature, len(classIndexes));
+   for i, classIndex := range(classIndexes) {
+      classes[i] = this.labels[classIndex];
+   }
+
+   return classes, probabilities;
 }
 
-func (this LogisticRegression) classify(tuples []base.NumericTuple) ([]base.Feature, []float64) {
-   var probabilities [][]float64 = probabilities(this.weights, this.intercepts, tuples);
+// In the internals of Logistic Regression (typically non-exported functions),
+// we don't deal with actual base.Tuple's.
+// Just raw slices of doubles and ints (which are the mapped class labels).
 
-   var results []base.Feature = make([]base.Feature, len(tuples));
-   var resultProbabilities []float64 = make([]float64, len(tuples));
+func (this *LogisticRegression) train(data [][]float64, dataLabels []int) {
+   // Params = Weights                 + Intercepts
+   //          (|labels| x |features|) + (|labels|)
+   var initialParams []float64 = make([]float64, len(this.labels) * (1 + len(data[0])));
+
+   if (this.optimizer.SupportsBatch()) {
+      this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.OptimizeBatch(
+         initialParams,
+         util.RangeSlice(len(data)),
+         func(params []float64) float64 {
+            return this.negativeLogLikelihoodOptimize(data, dataLabels, params);
+         },
+         func(params []float64, points []int) []float64 {
+            return this.negativeLogLikelihoodGradientBatchOptimize(data, dataLabels, params, points);
+         },
+      ));
+   } else {
+      this.weights, this.intercepts = this.unpackOptimizerParams(this.optimizer.Optimize(
+         initialParams,
+         func(params []float64) float64 {
+            return this.negativeLogLikelihoodOptimize(data, dataLabels, params);
+         },
+         func(params []float64) []float64 {
+            return this.negativeLogLikelihoodGradientOptimize(data, dataLabels, params);
+         },
+      ));
+   }
+}
+
+func (this LogisticRegression) classify(data [][]float64) ([]int, []float64) {
+   var probabilities [][]float64 = probabilities(this.weights, this.intercepts, data);
+
+   var results []int = make([]int, len(data));
+   var resultProbabilities []float64 = make([]float64, len(data));
 
    for i, instanceProbabilities := range(probabilities) {
       maxProbabilityIndex, maxProbability := util.Max(instanceProbabilities);
-      results[i] = this.labels[maxProbabilityIndex];
+      results[i] = maxProbabilityIndex;
       resultProbabilities[i] = maxProbability;
    }
 
    return results, resultProbabilities;
 }
 
-// Calculate the probability of each tuple being in each class.
-// Returns float64[tuple][class]
-// The math comes out to prob(tuple=x,class=k) = exp(Wk dot x - logSumExp(Wj dot x))
+// Calculate the probability of each data point being in each class.
+// Returns float64[data point][class]
+// The math comes out to prob(point=x,class=k) = exp(Wk dot x - logSumExp(Wj dot x))
 // (logSumExp is over all classes j).
-func probabilities(weights [][]float64, intercepts[]float64, tuples []base.NumericTuple) [][]float64 {
-   var probabilities [][]float64 = make([][]float64, len(tuples));
+func probabilities(weights [][]float64, intercepts[]float64, data [][]float64) [][]float64 {
+   var probabilities [][]float64 = make([][]float64, len(data));
    for i, _ := range(probabilities) {
       probabilities[i] = make([]float64, len(weights));
    }
 
-   // This will get reset each tuple, but only allocate once.
+   // This will get reset each data point, but only allocated once.
    var activations []float64 = make([]float64, len(weights));
 
-   for tupleIndex, tuple := range(tuples) {
+   for dataPointIndex, dataPoint := range(data) {
       for classIndex, _ := range(weights) {
-         activations[classIndex] = intercepts[classIndex] + dot(weights[classIndex], tuple);
+         activations[classIndex] = intercepts[classIndex] + dot(weights[classIndex], dataPoint);
       }
 
       var normalization float64 = util.LogSumExp(activations);
-
       for classIndex, _ := range(weights) {
-         probabilities[tupleIndex][classIndex] = math.Exp(activations[classIndex] - normalization);
+         probabilities[dataPointIndex][classIndex] = math.Exp(activations[classIndex] - normalization);
       }
    }
 
@@ -165,21 +193,17 @@ func probabilities(weights [][]float64, intercepts[]float64, tuples []base.Numer
 }
 
 // Math comes out to:
-// NNL = -[ sum(n over data){ sum(k over classes){ oneHotLabel(n, k) * (Wk dot x - logSumExp(Wj dot x)) } } ]
-// NNL = -[ sum(n over data){ sum(k over classes){ oneHotLabel(n, k) * log(prob(Xn, k)) } } ]
+// NLL = -[ sum(n over data){ sum(k over classes){ oneHotLabel(n, k) * (Wk dot x - logSumExp(Wj dot x)) } } ]
+// NLL = -[ sum(n over data){ sum(k over classes){ oneHotLabel(n, k) * log(prob(Xn, k)) } } ]
 func negativeLogLikelihood(
       weights [][]float64, intercepts []float64, l2Penalty float64,
-      tuples []base.NumericTuple, labels []base.Feature) float64 {
-   var probabilities [][]float64 = probabilities(weights, intercepts, tuples);
+      data [][]float64, dataLabels []int) float64 {
+   var probabilities [][]float64 = probabilities(weights, intercepts, data);
 
    var sum float64 = 0;
-   for tupleIndex, tuple := range(tuples) {
-      for classIndex, classValue := range(labels) {
-         // One hot multiplication, the value is only active if the class is one that we are examining.
-         if (tuple.GetClass() == classValue) {
-            sum += math.Log(probabilities[tupleIndex][classIndex]);
-         }
-      }
+   for dataPointIndex, _ := range(data) {
+      // One hot multiplication, the value is only active if the class is one that we are examining.
+      sum += math.Log(probabilities[dataPointIndex][dataLabels[dataPointIndex]]);
    }
 
    // Add an l2 regularizer
@@ -200,28 +224,34 @@ func negativeLogLikelihood(
 // So, we will return a vector of gradients.
 func negativeLogLikelihoodGradient(
       weights [][]float64, intercepts []float64, l2Penalty float64,
-      tuples []base.NumericTuple, labels []base.Feature) ([][]float64, []float64) {
-   var probabilities [][]float64 = probabilities(weights, intercepts, tuples);
+      data [][]float64, dataLabels []int) ([][]float64, []float64) {
+   var probabilities [][]float64 = probabilities(weights, intercepts, data);
 
-   var gradients [][]float64 = make([][]float64, len(labels));
+   // TODO(eriq): Allocate once and keep in struct?
+   // Note that the number of weight vectors (len(weights)) ==
+   // the number of intercepts (len(intercepts)) ==
+   // the number of classes.
+   // [class][feature]
+   var gradients [][]float64 = make([][]float64, len(intercepts));
    for classIndex, _ := range(gradients) {
-      gradients[classIndex] = make([]float64, tuples[0].DataSize());
+      gradients[classIndex] = make([]float64, len(data[0]));
    }
 
-   var interceptGradients []float64 = make([]float64, len(labels));
+   var interceptGradients []float64 = make([]float64, len(intercepts));
 
-   for tupleIndex, tuple := range(tuples) {
-      for classIndex, classValue := range(labels) {
-         var val float64 = probabilities[tupleIndex][classIndex];
+   for dataPointIndex, dataPoint := range(data) {
+      for classIndex, _ := range(intercepts) {
+         var val float64 = probabilities[dataPointIndex][classIndex];
+
          // One hot.
-         if (tuple.GetClass() == classValue) {
+         if (dataLabels[dataPointIndex] == classIndex) {
             val -= 1.0;
          }
 
          interceptGradients[classIndex] += val;
 
-         for featureIndex := 0; featureIndex < tuple.DataSize(); featureIndex++ {
-            gradients[classIndex][featureIndex] += val * tuple.GetNumericData(featureIndex);
+         for featureIndex := 0; featureIndex < len(data[0]); featureIndex++ {
+            gradients[classIndex][featureIndex] += val * dataPoint[featureIndex];
          }
       }
    }
@@ -252,6 +282,7 @@ func (this LogisticRegression) unpackOptimizerParams(params []float64) ([][]floa
    var packedWeights []float64 = params[len(this.labels):];
    var numFeatures int = len(packedWeights) / len(this.labels);
 
+   // TODO(eriq): Avoid this allocation?
    var weights [][]float64 = make([][]float64, len(this.labels));
    for i, _ := range(weights) {
       weights[i] = packedWeights[(i * numFeatures) : ((i + 1) * numFeatures)];
@@ -260,26 +291,28 @@ func (this LogisticRegression) unpackOptimizerParams(params []float64) ([][]floa
    return weights, intercepts;
 }
 
-// A wrapper for an optimizer function for NNL.
-// The first param will be curried.
+// A wrapper for an optimizer function for NLL.
+// The first two params will be curried.
 func (this LogisticRegression) negativeLogLikelihoodOptimize(
-      tuples []base.NumericTuple,
+      data [][]float64,
+      dataLabels []int,
       params []float64) float64 {
    weights, intercepts := this.unpackOptimizerParams(params);
 
-   return negativeLogLikelihood(weights, intercepts, this.l2Penalty, tuples, this.labels);
+   return negativeLogLikelihood(weights, intercepts, this.l2Penalty, data, dataLabels);
 }
 
 // A wrapper for an optimizer function for NLL.
-// The first param will be curried.
+// The first two params will be curried.
 func (this LogisticRegression) negativeLogLikelihoodGradientOptimize(
-      tuples []base.NumericTuple,
+      data [][]float64,
+      dataLabels []int,
       params []float64) []float64 {
    weights, intercepts := this.unpackOptimizerParams(params);
 
    weightGradients, interceptGradients := negativeLogLikelihoodGradient(
          weights, intercepts, this.l2Penalty,
-         tuples, this.labels);
+         data, dataLabels);
 
    // Packup the gradients.
    var gradients []float64 = make([]float64, len(interceptGradients) + len(weightGradients) * len(weightGradients[0]));
@@ -299,22 +332,21 @@ func (this LogisticRegression) negativeLogLikelihoodGradientOptimize(
 // A wrapper for a batch optimizer function for NLL.
 // The first param will be curried.
 func (this LogisticRegression) negativeLogLikelihoodGradientBatchOptimize(
-      tuples []base.NumericTuple,
+      data [][]float64,
+      dataLabels []int,
       params []float64,
       points []int) []float64 {
-   return this.negativeLogLikelihoodGradientOptimize(base.SelectNumericTuples(tuples, points), params);
+   return this.negativeLogLikelihoodGradientOptimize(
+      util.SelectIndexesFloat2D(data, points), util.SelectIndexesInt(dataLabels, points), params);
 }
 
-// TODO(eriq): Optimize
-func dot(a []float64, b base.NumericTuple) float64 {
-   if (len(a) != b.DataSize()) {
-      panic(fmt.Sprintf("Length of LHS (%d) and length of RHS (%d) must match for a dot.", len(a), b.DataSize()));
+func dot(a []float64, b []float64) float64 {
+   if (len(a) != len(b)) {
+      panic(fmt.Sprintf("Length of LHS (%d) and length of RHS (%d) must match for a dot.", len(a), len(b)));
    }
 
-   var sum float64 = 0;
-   for i, _ := range(a) {
-      sum += a[i] * b.GetNumericData(i);
-   }
+   var aVec blas64.Vector = blas64.Vector{1, a};
+   var bVec blas64.Vector = blas64.Vector{1, b};
 
-   return sum;
+   return blas64.Dot(len(a), aVec, bVec);
 }

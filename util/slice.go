@@ -43,3 +43,28 @@ func RangeSlice(size int) []int {
    }
    return rtn;
 }
+
+// Pull out indexes that match the given indexes.
+func SelectIndexesFloat(data []float64, indexes []int) []float64 {
+   var rtn []float64 = make([]float64, len(indexes));
+   for i, chosenIndex := range(indexes) {
+      rtn[i] = data[chosenIndex];
+   }
+   return rtn;
+}
+
+func SelectIndexesInt(data []int, indexes []int) []int {
+   var rtn []int = make([]int, len(indexes));
+   for i, chosenIndex := range(indexes) {
+      rtn[i] = data[chosenIndex];
+   }
+   return rtn;
+}
+
+func SelectIndexesFloat2D(data [][]float64, indexes []int) [][]float64 {
+   var rtn [][]float64 = make([][]float64, len(indexes));
+   for i, chosenIndex := range(indexes) {
+      rtn[i] = data[chosenIndex];
+   }
+   return rtn;
+}

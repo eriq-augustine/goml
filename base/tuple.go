@@ -12,6 +12,7 @@ type Tuple interface {
 type NumericTuple interface {
    Tuple
    GetNumericData(index int) float64
+   ToFloatSlice() []float64
 }
 
 type IntTuple interface {
@@ -88,6 +89,14 @@ func (this FloatTuple) GetNumericData(index int) float64 {
    return this.Data[index].NumericValue();
 }
 
+func (this FloatTuple) ToFloatSlice() []float64 {
+   var rtn []float64 = make([]float64, this.DataSize());
+   for i, _ := range(rtn) {
+      rtn[i] = this.GetNumericData(i);
+   }
+   return rtn;
+}
+
 func (this FloatTuple) GetClass() Feature {
    return this.Class;
 }
@@ -127,6 +136,14 @@ func (this IntegerTuple) SetData(index int, newValue interface{}) {
 
 func (this IntegerTuple) GetNumericData(index int) float64 {
    return this.Data[index].NumericValue();
+}
+
+func (this IntegerTuple) ToFloatSlice() []float64 {
+   var rtn []float64 = make([]float64, this.DataSize());
+   for i, _ := range(rtn) {
+      rtn[i] = this.GetNumericData(i);
+   }
+   return rtn;
 }
 
 func (this IntegerTuple) GetIntData(index int) int {
