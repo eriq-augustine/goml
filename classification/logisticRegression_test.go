@@ -390,3 +390,31 @@ func TestLogisticRegressionBase(t *testing.T) {
       }
    }
 }
+
+func BenchmarkLogisticRegressionBase(b *testing.B) {
+   fakeLargeDataTest, fakeLargeDataTestClasses := base.StripClasses([]base.Tuple(base.FakeData(200, 3, 100, 0, nil, nil, 4)));
+   var fakeLargeDataTestConfidences []float64 = make([]float64, len(fakeLargeDataTest));
+   for i, _ := range(fakeLargeDataTest) {
+      fakeLargeDataTestConfidences[i] = 0.75;
+   }
+
+   var testCase lrTestCase = lrTestCase{
+      "FakeDataLarge",
+      features.NoReducer{},
+      nil,
+      -1,
+      base.FakeData(2000, 3, 100, 0, nil, nil, 4),
+      fakeLargeDataTest,
+      fakeLargeDataTestClasses,
+      fakeLargeDataTestConfidences,
+   };
+
+   // Ignore time setting up the data.
+   b.ResetTimer();
+
+   for n := 0; n < b.N; n++ {
+      var lr Classifier = NewLogisticRegression(testCase.Reducer, testCase.Optimizer, testCase.L2Penalty);
+      lr.Train(testCase.TestData);
+      lr.Classify(testCase.Input);
+   }
+}
